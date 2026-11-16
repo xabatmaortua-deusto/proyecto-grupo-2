@@ -1,0 +1,23 @@
+# Vídeos y datos: pesan mucho y crecerán con el dataset -> se comparten por Drive, no por git
+*.MOV
+*.mov
+*.mp4
+*.MP4
+*.avi
+datos/
+datos_recortados/
+
+# Resultados generados por los scripts (se pueden regenerar)
+resultados_*/
+
+# Modelos: hand_landmarker.task lo descarga el script solo; los .pt entrenados pesan mucho
+*.task
+*.pt
+*.pth
+
+# Python / Jupyter / entornos
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv*/
+.vscode/

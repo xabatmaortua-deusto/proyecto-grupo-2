@@ -1,0 +1,11 @@
+# Instalar con:  python -m pip install -r requirements.txt
+# (torch/torchvision: versión CPU. Para la de GPU, ver https://pytorch.org)
+opencv-contrib-python==5.0.0.93
+mediapipe==1.2.3
+numpy==2.5.3
+scipy==1.18.1
+matplotlib==3.11.2
+pandas==3.0.6
+scikit-learn==1.9.1
+torch==2.15.0
+torchvision==0.29.2
