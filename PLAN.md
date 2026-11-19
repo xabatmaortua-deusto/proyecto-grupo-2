@@ -36,6 +36,31 @@ Por cada vídeo se generan en `resultados_mediapipe/` un vídeo anotado, una gr�
 - Los umbrales están ajustados con **solo 3 vídeos, de una misma palabra**. Las reglas de A, V y W están escritas pero **sin probar**.
 - MediaPipe es un **modelo entrenado**, así que **no cuenta como solución clásica**. Hay que preguntar al profesor si puede usarse como referencia o como ayuda (por ejemplo, para recortar la mano).
 
+### 1.1 Abecedario completo: MediaPipe + clasificador
+
+Las reglas a mano no escalan a todo el abecedario: muchas letras se parecen y cada regla nueva rompe otra. Por eso hay una segunda versión en la que **MediaPipe da los 21 puntos** y un **clasificador (Random Forest) aprende cada letra a partir de ejemplos grabados por nosotros**.
+
+- Letras: las 30 del alfabeto dactilológico de la LSE (con CH, LL, Ñ y RR), más una clase `nada` para la mano en reposo o cambiando de letra. La lista está en `ALFABETO`, dentro de [letras_comun.py](letras_comun.py).
+- Algunas letras llevan **movimiento**. Por eso no se clasifica un fotograma suelto, sino una **ventana de 16 fotogramas** (unos 0,5 s): la forma de la mano al principio y al final, y el recorrido de la muñeca y de la punta del índice. No hace falta decir a mano qué letras se mueven.
+- La palabra se construye con la misma clase `Palabra` de la prueba inicial.
+- Ofrece la **interfaz común** `ReconocedorLetras().reconocer(frame_bgr)`.
+
+| Paso | Script | Qué hace |
+|---|---|---|
+| 1 | [grabar_letras.py](grabar_letras.py) | Graba con la webcam unos 3 s de cada letra y guarda solo los puntos (unos 25 KB) en `dataset_letras/<LETRA>/<persona>_<fecha>.npz`. También admite un vídeo ya grabado (`--video` y `--letra`). |
+| 2 | [entrenar_letras.py](entrenar_letras.py) | Entrena y valida **por grabación** o **por persona** (`--val-persona`), para que no haya ventanas gemelas. Saca el acierto por letra y la matriz de confusión en `resultados_letras/` y guarda `modelo_letras.joblib`. |
+| 3 | [reconocer_letras.py](reconocer_letras.py) | Reconoce letras y palabras en directo con la webcam, o en vídeos (guarda el vídeo anotado). |
+
+```powershell
+..\.venvVision\Scripts\python.exe grabar_letras.py --persona ainhoa     # ESPACIO graba, d/a cambia de letra
+..\.venvVision\Scripts\python.exe entrenar_letras.py                    # o --val-persona ane
+..\.venvVision\Scripts\python.exe reconocer_letras.py                   # webcam (o: reconocer_letras.py IMG_2485.MOV)
+```
+
+**Dataset:** los `.npz` pesan poco, así que `dataset_letras/` **sí se sube a git** y así juntamos lo que graba cada persona. Objetivo: **3 o más grabaciones por letra y persona**, con alguna luz distinta. El modelo `.joblib` no se sube: cada uno lo regenera con el paso 2.
+
+**Estado:** la cadena completa está probada con vídeos sintéticos hechos a partir de fotos de manos. Se reconoció la palabra de prueba sin errores y distingue una letra quieta de la misma forma en movimiento. **Falta grabar el dataset real** de las 30 letras.
+
 ---
 
 ## 2. Cómo es la solución clásica ("manual")
