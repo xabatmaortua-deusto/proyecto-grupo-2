@@ -1,0 +1,2 @@
+string texto
+bool terminada
