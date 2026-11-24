@@ -19,7 +19,7 @@ Todas son relativas (cocientes o ángulos), para que no dependan de la distancia
     tiene_agujero  Hay un hueco interior grande (círculo índice-pulgar). → O
     n_dedos        (pendiente) Dedos estirados, por los huecos entre ellos. → A/B 0, L/V 2, W 3
     alargamiento   (pendiente) Lado largo / lado corto del rectángulo mínimo. → B frente a A
-    solidez        (pendiente) Área del contorno / área de la envolvente. → comprobación extra
+    solidez        Área del contorno / área de la envolvente convexa (0-1). → cerrada o abierta
     angulo_dedos   (pendiente) Ángulo entre las puntas de los dos dedos.  → L frente a V
 
 Técnicas
@@ -76,6 +76,20 @@ def tiene_agujero(agujeros, area_mano):
     return any(cv2.contourArea(a) >= FRACCION_MIN_AGUJERO * area_mano for a in agujeros)
 
 
+def solidez(contorno, area):
+    """Área del contorno dividida entre el área de su envolvente convexa (de 0 a 1).
+
+    La envolvente convexa (cv2.convexHull, tema 4) es como una goma elástica que rodea la mano.
+    Con la mano cerrada (puño, A) o los dedos juntos (B) la goma queda pegada y la solidez es
+    cercana a 1. Con dedos separados (L, V, W) la goma cubre los huecos entre ellos y la solidez
+    baja.
+    """
+    area_envolvente = cv2.contourArea(cv2.convexHull(contorno))
+    if area_envolvente <= 0:
+        return 0.0
+    return area / area_envolvente
+
+
 def medidas(mascara):
     """Calcula las medidas geométricas de la mano a partir de su máscara.
 
@@ -91,4 +105,5 @@ def medidas(mascara):
         'valida': True,
         'area': area,
         'tiene_agujero': tiene_agujero(agujeros, area),
+        'solidez': solidez(contorno, area),
     }

@@ -44,6 +44,36 @@ def test_agujero_diminuto_es_ruido():
     assert not medidas(m)['tiene_agujero']
 
 
+def mano_con_dedos(n_dedos, separacion=30):
+    """Dibuja una «mano» esquemática: una palma rectangular con n dedos separados encima."""
+    m = lienzo()
+    cv2.rectangle(m, (50, 110), (150, 180), 255, -1)                  # palma
+    for i in range(n_dedos):
+        x = 60 + i * separacion
+        cv2.rectangle(m, (x, 30), (x + 12, 110), 255, -1)             # dedo
+    return m
+
+
+def test_formas_convexas_tienen_solidez_casi_1():
+    # Puño (A) o dedos juntos (B): sin huecos, la envolvente coincide con la forma.
+    m = lienzo()
+    cv2.rectangle(m, (60, 40), (140, 170), 255, -1)
+    assert medidas(m)['solidez'] > 0.98
+
+
+def test_dedos_separados_bajan_la_solidez():
+    # Con dedos separados (L, V, W) la envolvente cubre los huecos entre ellos.
+    assert medidas(mano_con_dedos(3))['solidez'] < 0.85
+
+
+def test_mismos_dedos_separados_tienen_menos_solidez_que_juntos():
+    # Ojo: la solidez NO cuenta dedos (un solo dedo en un lado deja un hueco grande y la baja
+    # mucho). Lo que sí mide: con los mismos dedos, separarlos aumenta los huecos.
+    juntos = medidas(mano_con_dedos(4, separacion=12))['solidez']
+    separados = medidas(mano_con_dedos(4, separacion=30))['solidez']
+    assert separados < juntos
+
+
 def test_se_queda_con_la_mancha_mas_grande():
     # Una mancha pequeña con agujero (ruido) no debe confundirse con la mano.
     m = lienzo()
