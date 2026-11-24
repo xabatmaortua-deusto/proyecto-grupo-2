@@ -55,8 +55,8 @@ fotograma ──► 1. segmentar ──► máscara ──► 2-6. medidas ─�
 | 2 | Contorno de la mano y agujero interior | `signos_gestos/clasico/medidas.py` | ✅ |
 | 3 | Solidez | `signos_gestos/clasico/medidas.py` | ✅ |
 | 4 | Alargamiento | `signos_gestos/clasico/medidas.py` | ✅ |
-| 5 | Número de dedos | `signos_gestos/clasico/medidas.py` | 🔲 |
-| 6 | Ángulo entre dedos | `signos_gestos/clasico/medidas.py` | 🔲 |
+| 5 | Número de dedos | `signos_gestos/clasico/medidas.py` | ✅ |
+| 6 | Ángulo entre dedos | `signos_gestos/clasico/medidas.py` | ✅ |
 | 7 | Análisis de las medidas por letra para elegir umbrales | `herramientas/analisis_medidas.ipynb` | 🔲 |
 | 8 | Reglas de decisión | `signos_gestos/clasico/reconocer.py` | 🔲 |
 | 9 | Evaluación y comparación con la vía DL | (función común, por definir) | 🔲 |
@@ -148,19 +148,40 @@ Se recomienda probar la opción 1 con el dataset y pasar a la 2 o la 3 solo si n
   puño.
 - **Depende de que la máscara no incluya el antebrazo** (paso 1c): con el antebrazo, todo parece alargado.
 
-### Paso 5 · Número de dedos 🔲
+### Paso 5 · Número de dedos ✅
 
-Propuesta:
 - A partir de la envolvente convexa (`cv2.convexHull` con `returnPoints=False`), **`cv2.convexityDefects`** da los
-  «defectos»: los tramos donde el contorno se separa de la envolvente. Cada uno trae su punto más profundo y su
-  profundidad.
+  «defectos»: los tramos donde el contorno se separa de la envolvente. Cada uno trae sus dos extremos (cerca de las
+  puntas de los dedos), su punto más profundo (la base del hueco) y su profundidad.
 - Un defecto es un **hueco entre dos dedos** si:
-  - es **profundo**: su profundidad supera una fracción del tamaño de la mano. Para medir el tamaño se propone el
-    radio del círculo mínimo (`cv2.minEnclosingCircle`, tema 4), que no requiere técnicas nuevas;
-  - y es **estrecho**: el ángulo en el punto profundo, entre los dos extremos del defecto, es menor de unos 90°.
-    Los huecos anchos son la curva natural entre la palma y el pulgar o la muñeca, no huecos entre dedos.
+  - es **profundo**: su profundidad es al menos el 25 % del radio del círculo mínimo que encierra la mano
+    (`FRACCION_MIN_PROFUNDIDAD`; el radio se calcula con `cv2.minEnclosingCircle`, tema 4, sin técnicas nuevas);
+  - y es **estrecho**: el ángulo en la base, entre los dos extremos, es menor de 120° (`ANGULO_MAX_HUECO`). Los
+    huecos anchos son los lados de la palma, no huecos entre dedos.
 - **Dedos = huecos + 1** si hay al menos un hueco; **0** si no hay ninguno (A, B).
 - **Para qué sirve:** A/B (0 dedos separados), L/V (2), W (3).
+- **Resultados con manos dibujadas** (palma redonda y dedos gruesos; ver `test_medidas.py`):
+
+  | Mano | Dedos | Ángulo |
+  |---|---|---|
+  | A (puño) | 0 | — |
+  | B (tres dedos juntos) | 0 | — |
+  | V (±20°) | 2 | 52° |
+  | V estrecha (±12°) | 2 | 35° |
+  | L recta / inclinada | 2 | 110° / 107° |
+  | W | 3 | — |
+
+- **Por qué el límite es 120° y no 90°:** el hueco de la L mide unos 105–110°, porque se mide desde la base hasta los
+  extremos de dos dedos gruesos, no entre los ejes de los dedos. Con 90° se perdería la L; con 110° quedaba justo en
+  el límite.
+- **Depende de que la máscara no incluya el antebrazo:** con un trozo de muñeca dibujado bajo la palma, la L contaba
+  3 dedos, porque el hueco entre el pulgar y la muñeca (~100°) parece un hueco entre dedos. El ángulo no lo puede
+  filtrar; la solución es recortar el antebrazo en el paso 1c.
+- **Caso a vigilar en las reglas (paso 8):** una mano con **un solo dedo** levantado da 0 dedos (no deja huecos
+  estrechos) y es alargada, así que se parece a la B. No es una de nuestras letras, pero si alguien la hace, las
+  reglas deberían devolver `'?'`. Habrá que ver en el paso 7 si la solidez o el alargamiento las separan.
+- **Compatibilidad:** OpenCV 5 (el de `requirements.txt`) devuelve los defectos con forma `(N, 4)` y OpenCV 4 (el de
+  los ejemplos de clase) con `(N, 1, 4)`. El código usa `reshape` para funcionar con los dos.
 - **Técnica no vista en clase: `cv2.convexityDefects`.** Justificación:
   - Es la continuación directa de `cv2.convexHull`, que sí se vio: devuelve justamente los puntos donde el contorno
     se aleja de la envolvente, es decir, los huecos entre los dedos.
@@ -168,17 +189,14 @@ Propuesta:
   - Es la forma habitual de contar dedos sobre una silueta.
 - Los umbrales (fracción de profundidad y ángulo) quedan como constantes al principio de `medidas.py`, con su
   justificación, y se ajustan en el paso 7.
-- Tests a añadir: formas dibujadas con 0, 2 y 3 dedos, y el caso de un solo dedo.
+### Paso 6 · Ángulo entre dedos ✅
 
-### Paso 6 · Ángulo entre dedos 🔲
-
-Propuesta:
-- Cuando hay **2 dedos**, el hueco entre ellos (paso 5) da tres puntos: los dos extremos del defecto (cerca de las
-  puntas de los dedos) y su punto más profundo (la base, entre los dedos).
+- Cuando hay **2 dedos**, el único hueco entre ellos (paso 5) da tres puntos: los dos extremos y la base.
 - El ángulo en la base se calcula con el mismo producto escalar que la función `angulo(a, b, c)` de la **sesión 5 y la
   Práctica 5** de MediaPipe, aplicado a puntos del contorno en lugar de puntos de MediaPipe.
-- **Para qué sirve:** distinguir la **L** (~90°, índice y pulgar) de la **V** (~30–50°, índice y corazón).
-- Tests a añadir: dos «dedos» dibujados a 90° y a 40°.
+- Con otro número de dedos devuelve `None`: solo hace falta para separar la L de la V.
+- **Para qué sirve:** distinguir la **L** (índice y pulgar, ~105–110° medido así) de la **V** (índice y corazón,
+  ~35–55°). La separación entre las dos es muy grande, así que el umbral de la regla (paso 8) tiene margen.
 
 ### Paso 7 · Análisis de las medidas 🔲
 
@@ -196,8 +214,8 @@ Propuesta:
 ¿hay agujero?                  → O
 0 dedos:  alargada             → B
           compacta             → A
-2 dedos:  ángulo ≈ 90°         → L
-          ángulo < 50°         → V
+2 dedos:  ángulo grande        → L   (~105-110° con manos dibujadas)
+          ángulo pequeño       → V   (~35-55°)
 3 dedos                        → W
 cualquier otro caso            → '?'
 ```
@@ -252,16 +270,21 @@ comprobar que siguen siendo minoría.
 - **Tests:** `test/test_medidas.py` y `test/test_reconocer_clasico.py`. Desde la carpeta `signos_gestos/`:
 
   ```bash
-  python -m pytest test/ -v
+  python -m pytest test/test_medidas.py test/test_reconocer_clasico.py -v
   ```
 
   Con `python -m` la carpeta actual entra en el path y se puede importar el paquete. Ejecutadlos antes de cada commit.
+  No uséis `pytest test/` fuera del contenedor: en esa carpeta también están los tests de estilo de ROS
+  (`test_flake8.py`, `test_pep257.py`, `test_copyright.py`), que necesitan las herramientas de ROS. Esos se ejecutan
+  con `colcon test` dentro del contenedor.
 - **Cada medida nueva** va con su función en `medidas.py`, su entrada en el diccionario que devuelve `medidas()` y al
   menos un test con formas dibujadas con código.
 - **Umbrales y valores provisionales:** siempre como constantes al principio del fichero, con un comentario que diga de
-  dónde salen. Hoy: `FRACCION_MIN_AGUJERO = 0.02` en `medidas.py`.
+  dónde salen. Hoy, en `medidas.py`: `FRACCION_MIN_AGUJERO = 0.02`, `FRACCION_MIN_PROFUNDIDAD = 0.25` y
+  `ANGULO_MAX_HUECO = 120`. Todos se revisan en el paso 7 con fotos reales.
 - **Estilo:** el paquete ROS revisa el estilo con flake8 y pep257 (líneas de 99 caracteres como máximo y docstrings en
   todas las funciones). Código, comentarios y mensajes en español.
-- **Siguiente paso sugerido:** el paso 5 (número de dedos) se puede hacer ya con formas dibujadas; el paso 1 necesita
-  las primeras fotos del dataset.
+- **Siguiente paso sugerido:** `medidas.py` está completo y probado con manos dibujadas. Lo siguiente es el dataset
+  (paso 0) y la segmentación (paso 1): con las primeras fotos se puede comprobar si las medidas se comportan igual con
+  manos reales y pasar al análisis (paso 7).
 - Organización general de la carpeta: `docs/ESTRUCTURA.md`.
