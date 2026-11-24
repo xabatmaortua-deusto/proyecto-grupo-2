@@ -23,14 +23,16 @@ Es lo que permite trabajar en paralelo. Todo se puede probar ya con las imágene
 que traen la verdad de cada ficha (letra, x, y, theta).
 
 ```python
-deteccion.detectar_clasico(enderezada) -> [{'x': mm, 'y': mm, 'angulo': rad, 'recorte': imagen}, ...]
+deteccion.detectar_clasico(enderezada) -> [{'x': mm, 'y': mm, 'angulo': rad, 'recorte': imagen, 'confianza': 0..1}, ...]
 deteccion.detectar_dl(enderezada)      -> igual
 letras.reconocer_clasico(recorte)      -> (letra, giro, confianza)   # giro: 0, 1, 2 o 3 cuartos de vuelta
 letras.reconocer_dl(recorte)           -> igual
+theta = deteccion.theta_en_bandeja(angulo, giro)                     # = angulo + giro * 90°
 ```
 
 Como la ficha mide 18 × 20 mm y es casi cuadrada, la detección no sabe hacia dónde mira la letra: por eso la
-etapa 3 decide entre 4 giros.
+etapa 3 decide entre 4 giros. `giro` es el `k` tal que `np.rot90(recorte, k)` deja la letra derecha (raya abajo);
+el convenio completo está en [`DETECCION_FICHAS.md`](DETECCION_FICHAS.md).
 
 Convenio de `theta` (igual que en `CLAUDE.md`): dirección raya → parte de arriba de la letra, en radianes.
 En la bandeja se mide desde su +X (del ArUco 0 al 1); el nodo lo pasa a `world`.
@@ -100,4 +102,6 @@ entrenaron YOLO y la CNN, y lanzar el nodo y ver `/signos/fichas` con `ros2 topi
 
 - Medir la distancia real entre los centros de los ArUco (`ANCHO_MM`, `FONDO_MM` en `bandeja.py`; ahora 300 × 250 mm provisionales).
 - Primeras fotos reales de la bandeja con la ELP.
-- Probar el código en el contenedor (`requirements.txt` con OpenCV ≥ 4.7, la versión del material de ArUco de clase).
+- ~~Probar el código en el contenedor~~: hecho. El OpenCV de apt es 4.6 y no tiene `ArucoDetector`; con
+  `pip install --break-system-packages -r requirements.txt` (OpenCV 4.11, numpy 1.26) pasan `colcon build` y
+  `colcon test` de `signos_fichas`.
