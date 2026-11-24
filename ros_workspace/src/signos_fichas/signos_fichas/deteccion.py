@@ -19,15 +19,20 @@ la letra: de sus 4 lados, el "arriba" del recorte es el que mira más hacia -Y, 
 recorte se ve como en la enderezada, girado menos de 45°. La etapa de letras decide el giro k
 (0..3) tal que np.rot90(recorte, k) deja la letra derecha, y theta_en_bandeja(angulo, k) da
 la theta del contrato (dirección raya -> parte de arriba de la letra).
+
+Para probarlo con fotos de la cámara cenital (dibuja lo detectado):
+    python3 -m signos_fichas.deteccion foto1.png foto2.png [--metodo dl] [--salida carpeta]
 """
 
+import argparse
 import math
 import os
 
 import cv2
 import numpy as np
 
-from signos_fichas.bandeja import CENTROS_MM, LADO_ARUCO_MM
+from signos_fichas.bandeja import (calcular_homografia, CENTROS_MM, detectar_aruco, enderezar,
+                                   LADO_ARUCO_MM)
 
 PX_POR_MM = 2.0  # resolución de la enderezada (la de bandeja.enderezar por defecto)
 ANCHO_FICHA_MM = 18.0
@@ -169,3 +174,39 @@ def _ficha(enderezada, rect, px_por_mm, confianza):
                              flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP)
     return {'x': cu / px_por_mm, 'y': cv / px_por_mm, 'angulo': angulo, 'recorte': recorte,
             'confianza': confianza}
+
+
+def main():
+    p = argparse.ArgumentParser(description='Detecta y dibuja las fichas de fotos de la bandeja.')
+    p.add_argument('fotos', nargs='+', help='fotos de la cámara cenital, con los ArUco')
+    p.add_argument('--metodo', choices=['clasico', 'dl'], default='clasico')
+    p.add_argument('--modelo', default=MODELO_DL, help=f'pesos de YOLO para dl ({MODELO_DL})')
+    p.add_argument('--px-por-mm', type=float, default=PX_POR_MM)
+    p.add_argument('--salida', help='carpeta donde guardar los dibujos (si no, se muestran)')
+    args = p.parse_args()
+    for ruta in args.fotos:
+        imagen = cv2.imread(ruta)
+        homografia = calcular_homografia(detectar_aruco(imagen))
+        if homografia is None:
+            print(f'{ruta}: no se ven 3 ArUco')
+            continue
+        enderezada = enderezar(imagen, homografia, args.px_por_mm)
+        if args.metodo == 'dl':
+            fichas = detectar_dl(enderezada, args.px_por_mm, args.modelo)
+        else:
+            fichas = detectar_clasico(enderezada, args.px_por_mm)
+        print(f'{ruta}: {len(fichas)} fichas')
+        for i, f in enumerate(fichas):
+            print(f"  {i}: x = {f['x']:.1f} mm, y = {f['y']:.1f} mm, "
+                  f"ángulo = {math.degrees(f['angulo']):.1f}°, confianza = {f['confianza']:.2f}")
+        dibujo = dibujar(enderezada, fichas, args.px_por_mm)
+        if args.salida:
+            os.makedirs(args.salida, exist_ok=True)
+            cv2.imwrite(os.path.join(args.salida, os.path.basename(ruta)), dibujo)
+        else:
+            cv2.imshow('fichas (cualquier tecla: siguiente)', dibujo)
+            cv2.waitKey(0)
+
+
+if __name__ == '__main__':
+    main()
