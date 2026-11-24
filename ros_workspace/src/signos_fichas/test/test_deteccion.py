@@ -2,6 +2,7 @@
 
 import math
 
+import numpy as np
 import pytest
 
 from signos_fichas.bandeja import calcular_homografia, detectar_aruco, enderezar
@@ -36,6 +37,22 @@ def test_clasico_sin_fichas_no_detecta_nada():
     # Los ArUco y su papel blanco también son claros: no pueden salir como fichas
     enderezada, _ = enderezada_sintetica(3, n_fichas=0)
     assert detectar_clasico(enderezada) == []
+
+
+@pytest.mark.parametrize('semilla', range(3))
+def test_recorte_y_giro_dan_la_theta_real(semilla):
+    # Con el giro k correcto, np.rot90(recorte, k) deja la raya abajo y theta_en_bandeja
+    # da la theta real: es el convenio que usan la etapa de letras y el nodo
+    enderezada, verdad = enderezada_sintetica(semilla)
+    fichas = detectar_clasico(enderezada)
+    for i, j, _ in emparejar(fichas, verdad):
+        f, theta = fichas[i], verdad[j]['theta']
+        assert -3 * math.pi / 4 <= f['angulo'] <= -math.pi / 4
+        giro = round(math.remainder(theta - f['angulo'], 2 * math.pi) / (math.pi / 2)) % 4
+        assert abs(math.remainder(theta_en_bandeja(f['angulo'], giro) - theta,
+                                  2 * math.pi)) < math.radians(2)
+        filas = np.rot90(f['recorte'], giro).mean(axis=(1, 2))
+        assert np.argmin(filas) > 0.7 * len(filas)  # la raya es la fila más oscura
 
 
 def test_theta_en_bandeja():
