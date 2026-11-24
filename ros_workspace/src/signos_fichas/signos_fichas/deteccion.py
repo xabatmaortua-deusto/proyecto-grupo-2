@@ -13,16 +13,29 @@ import math
 import cv2
 import numpy as np
 
+from signos_fichas.bandeja import CENTROS_MM, LADO_ARUCO_MM
+
 ANCHO_FICHA_MM = 18.0
 LARGO_FICHA_MM = 20.0
 TOLERANCIA_MM = 4.0  # diferencia admitida con las medidas de la ficha
 RELLENO_MIN = 0.85  # área del contorno / área de su rectángulo: las fichas son rectángulos
+MARGEN_ARUCO_MM = 10.0  # papel blanco alrededor de cada ArUco: ahí no se buscan fichas
 MARGEN_RECORTE_MM = 0.5  # el recorte se hace un poco hacia dentro para no meter fondo
 
 
 def theta_en_bandeja(angulo, giro):
     """Devuelve theta (rad, en [-pi, pi]) con el ángulo de la detección y el giro de la letra."""
     return math.remainder(angulo + giro * math.pi / 2, 2 * math.pi)
+
+
+def _fuera_de_los_aruco(forma, px_por_mm):
+    """Máscara (bool) de la enderezada sin los ArUco ni su papel, que también son claros."""
+    util = np.ones(forma[:2], bool)
+    m = (LADO_ARUCO_MM / 2 + MARGEN_ARUCO_MM) * px_por_mm
+    for cx, cy in CENTROS_MM.values():
+        u, v = cx * px_por_mm, cy * px_por_mm
+        util[max(0, round(v - m)):round(v + m), max(0, round(u - m)):round(u + m)] = False
+    return util
 
 
 def _rectangulo_de_ficha(contorno, px_por_mm):
