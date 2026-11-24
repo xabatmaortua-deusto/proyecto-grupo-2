@@ -1,13 +1,15 @@
 """Tests de deteccion.py y evaluar_deteccion.py con imágenes sintéticas."""
 
 import math
+import os
 
 import numpy as np
 import pytest
 
 from signos_fichas.bandeja import calcular_homografia, detectar_aruco, enderezar
-from signos_fichas.deteccion import detectar_clasico, PX_POR_MM, theta_en_bandeja
-from signos_fichas.evaluar_deteccion import emparejar, error_angulo_grados
+from signos_fichas.deteccion import (detectar_clasico, detectar_dl, MODELO_DL, PX_POR_MM,
+                                     refinar_cajas, theta_en_bandeja)
+from signos_fichas.evaluar_deteccion import caja_verdad, emparejar, error_angulo_grados
 from signos_fichas.sinteticas import generar
 
 
@@ -63,6 +65,22 @@ def test_theta_en_bandeja():
     assert abs(theta_en_bandeja(arriba, 3)) == pytest.approx(math.pi)
 
 
+@pytest.mark.parametrize('semilla', range(3))
+def test_refinar_cajas_como_las_de_yolo(semilla):
+    # Cajas algo descentradas, como las que daría YOLO: el centro y el ángulo salen de dentro
+    enderezada, verdad = enderezada_sintetica(semilla)
+    rng = np.random.default_rng(semilla)
+    cajas = [np.array(caja_verdad(f)) + rng.uniform(-3, 3, 4) for f in verdad]
+    fichas = refinar_cajas(enderezada, cajas, [0.9] * len(cajas))
+    comprobar(fichas, verdad)
+    assert all(f['confianza'] == 0.9 for f in fichas)
+
+
+def test_refinar_descarta_cajas_sin_ficha():
+    enderezada, _ = enderezada_sintetica(5, n_fichas=0)
+    assert refinar_cajas(enderezada, [(250, 200, 290, 240)], [0.8]) == []
+
+
 def test_emparejar():
     verdad = [{'x': 0, 'y': 0}, {'x': 50, 'y': 0}]
     detecciones = [{'x': 49, 'y': 1}, {'x': 1, 'y': 0}, {'x': 100, 'y': 100}]
@@ -73,3 +91,12 @@ def test_emparejar():
 def test_error_angulo_es_modulo_90_grados():
     assert error_angulo_grados(0.0, math.pi / 2 + math.radians(3)) == pytest.approx(3)
     assert error_angulo_grados(math.radians(44), math.radians(-44)) == pytest.approx(2)
+
+
+@pytest.mark.skipif(not os.path.exists(os.environ.get('MODELO_FICHAS', MODELO_DL)),
+                    reason='no hay pesos de YOLO (variable MODELO_FICHAS o MODELO_DL)')
+@pytest.mark.parametrize('semilla', [1000, 1001, 1002])
+def test_dl_encuentra_todas_las_fichas(semilla):
+    pytest.importorskip('ultralytics')
+    enderezada, verdad = enderezada_sintetica(semilla)
+    comprobar(detectar_dl(enderezada, modelo=os.environ.get('MODELO_FICHAS', MODELO_DL)), verdad)

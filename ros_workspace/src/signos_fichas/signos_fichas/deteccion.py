@@ -1,10 +1,12 @@
 """
 Detección de fichas en la bandeja enderezada: centro (mm), ángulo y recorte alineado.
 
-Es la etapa 2 de docs/PLAN_FICHAS.md:
+Es la etapa 2 de docs/PLAN_FICHAS.md, con dos versiones que devuelven lo mismo:
 
 - detectar_clasico: solo OpenCV. La madera es clara y el fondo de la bandeja oscuro, así que
   basta un umbral (Otsu) sobre el brillo, findContours y minAreaRect, filtrando por tamaño.
+- detectar_dl: YOLO (una clase, "ficha") da una caja por ficha y, dentro de cada caja, el
+  mismo minAreaRect da el centro y el ángulo exactos.
 
 Cada ficha detectada es un dict:
     x, y       centro en mm de la bandeja (origen en el centro del ArUco 0, +X al 1, +Y al 2)
@@ -20,6 +22,7 @@ la theta del contrato (dirección raya -> parte de arriba de la letra).
 """
 
 import math
+import os
 
 import cv2
 import numpy as np
@@ -34,6 +37,11 @@ RELLENO_MIN = 0.85  # área del contorno / área de su rectángulo: las fichas s
 CONTRASTE_MIN = 40  # la madera tiene que ser al menos así de más clara que el fondo (0..255)
 MARGEN_ARUCO_MM = 10.0  # papel blanco alrededor de cada ArUco: ahí no se buscan fichas
 MARGEN_RECORTE_MM = 0.5  # el recorte se hace un poco hacia dentro para no meter fondo
+MARGEN_CAJA_MM = 3.0  # DL: se amplía la caja de YOLO antes de buscar la ficha dentro
+CONFIANZA_MIN_DL = 0.5
+MODELO_DL = os.path.expanduser('~/ros_workspace/modelos/yolo_fichas.pt')
+
+_modelos = {}  # modelos YOLO ya cargados, por ruta
 
 
 def theta_en_bandeja(angulo, giro):
@@ -57,6 +65,45 @@ def detectar_clasico(enderezada, px_por_mm=PX_POR_MM):
         rect = _rectangulo_de_ficha(contorno, px_por_mm)
         if rect is not None:
             fichas.append(_ficha(enderezada, rect, px_por_mm, 1.0))
+    return fichas
+
+
+def detectar_dl(enderezada, px_por_mm=PX_POR_MM, modelo=MODELO_DL,
+                confianza_min=CONFIANZA_MIN_DL):
+    """Detecta las fichas con YOLO y saca su centro y su ángulo dentro de cada caja."""
+    if modelo not in _modelos:
+        from ultralytics import YOLO  # solo hace falta con el método DL
+        _modelos[modelo] = YOLO(modelo)
+    resultado = _modelos[modelo].predict(enderezada, conf=confianza_min, verbose=False)[0]
+    return refinar_cajas(enderezada, resultado.boxes.xyxy.cpu().numpy(),
+                         resultado.boxes.conf.cpu().numpy(), px_por_mm)
+
+
+def refinar_cajas(enderezada, cajas, confianzas, px_por_mm=PX_POR_MM):
+    """
+    Busca la ficha dentro de cada caja (x1, y1, x2, y2 en píxeles de la enderezada).
+
+    Dentro de la caja, ampliada un poco, Otsu separa la madera del fondo y minAreaRect del
+    contorno más grande da el centro y el ángulo. Las cajas sin una ficha válida se descartan.
+    """
+    alto, ancho = enderezada.shape[:2]
+    util = _fuera_de_los_aruco(enderezada.shape, px_por_mm)
+    margen = MARGEN_CAJA_MM * px_por_mm
+    fichas = []
+    for (x1, y1, x2, y2), confianza in zip(cajas, confianzas):
+        u1, v1 = max(0, int(x1 - margen)), max(0, int(y1 - margen))
+        u2, v2 = min(ancho, int(x2 + margen) + 1), min(alto, int(y2 + margen) + 1)
+        brillo = cv2.cvtColor(enderezada[v1:v2, u1:u2], cv2.COLOR_BGR2HSV)[:, :, 2]
+        _, binaria = cv2.threshold(brillo, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        binaria[~util[v1:v2, u1:u2]] = 0  # una ficha junto a un ArUco no se junta con su papel
+        contornos, _ = cv2.findContours(binaria, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contornos:
+            continue
+        rect = _rectangulo_de_ficha(max(contornos, key=cv2.contourArea), px_por_mm)
+        if rect is not None:
+            (cu, cv), tamano, angulo_rect = rect  # el centro, en píxeles del trozo de la caja
+            fichas.append(_ficha(enderezada, ((cu + u1, cv + v1), tamano, angulo_rect),
+                                 px_por_mm, float(confianza)))
     return fichas
 
 

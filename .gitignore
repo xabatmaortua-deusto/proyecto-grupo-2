@@ -3,3 +3,9 @@ install/
 log/
 __pycache__/
 *.pyc
+
+# Fuera de git (CLAUDE.md): pesos de modelos, datasets y salidas de entrenamiento
+*.pt
+*.onnx
+runs/
+ros_workspace/datasets/
