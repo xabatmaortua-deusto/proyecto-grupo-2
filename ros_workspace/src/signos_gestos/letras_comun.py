@@ -29,7 +29,7 @@ from mediapipe.tasks.python import vision
 AQUI = os.path.dirname(os.path.abspath(__file__))
 MODELO_MANO = os.path.join(AQUI, "hand_landmarker.task")          # el mismo de la prueba inicial
 URL_MODELO_MANO = ("https://storage.googleapis.com/mediapipe-models/hand_landmarker/"
-                   "hand_landmarker/float16/latest/hand_landmarker.task")
+                   "hand_landmarker/float16/1/hand_landmarker.task")
 CARPETA_DATOS = os.path.join(AQUI, "dataset_letras")              # una subcarpeta por letra
 MODELO_LETRAS = os.path.join(AQUI, "modelo_letras.joblib")        # lo crea entrenar_letras.py
 

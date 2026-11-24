@@ -57,9 +57,11 @@ Las reglas a mano no escalan a todo el abecedario: muchas letras se parecen y ca
 ..\.venvVision\Scripts\python.exe reconocer_letras.py                   # webcam (o: reconocer_letras.py IMG_2485.MOV)
 ```
 
-**Dataset:** los `.npz` pesan poco, así que `dataset_letras/` **sí se sube a git** y así juntamos lo que graba cada persona. Objetivo: **3 o más grabaciones por letra y persona**, con alguna luz distinta. El modelo `.joblib` no se sube: cada uno lo regenera con el paso 2.
+**Dataset:** las grabaciones y los `.npz` se comparten fuera de Git, en la carpeta compartida del grupo. Objetivo: **3 o más grabaciones por letra y persona**, con alguna luz distinta. El modelo `.joblib` no se sube: cada uno lo regenera con el paso 2.
 
-**Estado:** la cadena completa está probada con vídeos sintéticos hechos a partir de fotos de manos. Se reconoció la palabra de prueba sin errores y distingue una letra quieta de la misma forma en movimiento. **Falta grabar el dataset real** de las 30 letras.
+**Estado:** el equipo ha probado el reconocedor con vídeos reales del abecedario completo y confirma que funciona. Los vídeos no se incluyen en Git; se conservan fuera del repositorio. El script permite generar un CSV diagnóstico por fotograma para distinguir fallos de detección de mano, ventana incompleta y rechazo/clasificación.
+
+El modelo `HandLandmarker` se descarga desde una ruta versionada (`float16/1`) para que las instalaciones nuevas no dependan del alias cambiante `latest`. Para revisar una ejecución, se puede añadir `--diagnostico` al reconocedor; el CSV se guarda en `resultados_letras/` e incluye detección, estado, predicción y confianza por fotograma, pero no imágenes ni identidad de personas. Los estados distinguen `sin_mano`, `ventana_incompleta`, `nada`, `confianza_baja` y `reconocida`.
 
 ---
 

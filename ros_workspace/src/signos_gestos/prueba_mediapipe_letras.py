@@ -39,7 +39,7 @@ from mediapipe.tasks.python import vision
 AQUI = os.path.dirname(os.path.abspath(__file__))
 MODELO = os.path.join(AQUI, "hand_landmarker.task")
 URL_MODELO = ("https://storage.googleapis.com/mediapipe-models/hand_landmarker/"
-              "hand_landmarker/float16/latest/hand_landmarker.task")
+              "hand_landmarker/float16/1/hand_landmarker.task")
 SALIDA = os.path.join(AQUI, "resultados_mediapipe")
 
 # ------------------------------------------------------------------ los 21 puntos de la mano
