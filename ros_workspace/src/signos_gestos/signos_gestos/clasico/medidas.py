@@ -17,10 +17,10 @@ Todas son relativas (cocientes o ángulos), para que no dependan de la distancia
     valida         False si no hay mano en la máscara (las demás medidas no tienen sentido).
     area           Área del contorno, en píxeles.                     → descartar ruido
     tiene_agujero  Hay un hueco interior grande (círculo índice-pulgar). → O
-    n_dedos        (pendiente) Dedos estirados, por los huecos entre ellos. → A/B 0, L/V 2, W 3
-    alargamiento   (pendiente) Lado largo / lado corto del rectángulo mínimo. → B frente a A
+    n_dedos        Dedos separados, contando los huecos entre ellos.  → A/B 0, L/V 2, W 3
+    alargamiento   Lado largo / lado corto del rectángulo de área mínima (≥ 1). → B frente a A
     solidez        Área del contorno / área de la envolvente convexa (0-1). → cerrada o abierta
-    angulo_dedos   (pendiente) Ángulo entre las puntas de los dos dedos.  → L frente a V
+    angulo_dedos   Ángulo entre los dos dedos, en grados (None si no hay 2). → L frente a V
 
 Técnicas
 --------
@@ -37,13 +37,25 @@ Pruebas
 -------
 test/test_medidas.py comprueba cada medida con máscaras sencillas dibujadas con código.
 """
+import math
+
 import cv2
 import numpy as np
 
+# Valores iniciales. Se ajustarán con las gráficas de herramientas/analisis_medidas.ipynb (paso 7).
+
 # Un hueco interior cuenta como agujero de la O si su área es al menos esta fracción del área de la
-# mano. Los huecos más pequeños son ruido de la segmentación. Valor inicial: se ajustará con las
-# gráficas de herramientas/analisis_medidas.ipynb (tarea C6).
+# mano. Los huecos más pequeños son ruido de la segmentación.
 FRACCION_MIN_AGUJERO = 0.02
+
+# Un defecto de convexidad es un hueco entre dos dedos si su profundidad supera esta fracción del
+# radio del círculo mínimo que encierra la mano (así no depende de la distancia a la cámara)...
+FRACCION_MIN_PROFUNDIDAD = 0.25
+# ...y si es estrecho: el ángulo en su punto más profundo es menor que este. Las curvas anchas son
+# los lados de la palma, no huecos entre dedos. En la L el hueco índice-pulgar mide unos 105-110°
+# (se mide desde la base hasta las puntas de dos dedos gruesos), así que el límite queda por
+# encima, con margen. La V mide unos 35-55°.
+ANGULO_MAX_HUECO = 120
 
 
 def contorno_mano(mascara):
@@ -90,6 +102,98 @@ def solidez(contorno, area):
     return area / area_envolvente
 
 
+def alargamiento(contorno):
+    """Lado largo dividido entre lado corto del rectángulo de área mínima (1 o más).
+
+    cv2.minAreaRect (tema 4) da el rectángulo girado más pequeño que encierra la mano. Se usa en
+    lugar de cv2.boundingRect porque no cambia si la mano está inclinada (la B se hace de lado).
+    La B (dedos juntos y estirados) es alargada; la A (puño) es compacta, cercana a 1.
+
+    Depende de que la máscara no incluya el antebrazo: si lo incluye, todo parece alargado
+    (lo recorta clasico/segmentar.py, tarea C3).
+    """
+    (_, _), (ancho, alto), _ = cv2.minAreaRect(contorno)
+    corto, largo = sorted((ancho, alto))
+    if corto <= 0:
+        return 0.0
+    return largo / corto
+
+
+def angulo(a, b, c):
+    """Ángulo en b (grados) formado por los puntos a-b-c.
+
+    Es el mismo cálculo (producto escalar) que la función angulo() de la sesión 5 y la Práctica 5,
+    aplicado a puntos del contorno en lugar de puntos de MediaPipe.
+    """
+    v1 = (a[0] - b[0], a[1] - b[1])
+    v2 = (c[0] - b[0], c[1] - b[1])
+    normas = math.hypot(*v1) * math.hypot(*v2)
+    if normas == 0:
+        return 0.0
+    coseno = (v1[0] * v2[0] + v1[1] * v2[1]) / normas
+    return math.degrees(math.acos(max(-1.0, min(1.0, coseno))))
+
+
+def huecos_entre_dedos(contorno):
+    """Devuelve los huecos entre dedos como una lista de (punta_1, base, punta_2).
+
+    Técnica NO vista en clase: cv2.convexityDefects. Justificación: es la continuación directa de
+    cv2.convexHull (tema 4). Devuelve los tramos donde el contorno se separa de la envolvente
+    convexa, con su punto más profundo y su profundidad; es decir, los huecos entre los dedos.
+    Ninguna medida vista en clase cuenta dedos: la solidez no sirve (ver test_medidas.py).
+
+    De todos los defectos, solo cuentan los profundos y estrechos (constantes del principio).
+    El tamaño de la mano se mide con el radio de cv2.minEnclosingCircle (tema 4).
+
+    Depende de que la máscara no incluya el antebrazo: el hueco entre el pulgar de la L y la
+    muñeca se cuenta como un dedo más (comprobado con manos dibujadas).
+    """
+    if len(contorno) < 4:
+        return []
+    indices_envolvente = cv2.convexHull(contorno, returnPoints=False)
+    if indices_envolvente is None or len(indices_envolvente) < 3:
+        return []
+    try:
+        defectos = cv2.convexityDefects(contorno, indices_envolvente)
+    except cv2.error:
+        # Ocurre con contornos que se cortan a sí mismos (máscaras muy irregulares).
+        return []
+    if defectos is None:
+        return []
+
+    _, radio = cv2.minEnclosingCircle(contorno)
+    # reshape: OpenCV 4 devuelve las formas (N, 1, 4) y (N, 1, 2); OpenCV 5, (N, 4) y (N, 2).
+    puntos = contorno.reshape(-1, 2)
+    huecos = []
+    for inicio, fin, mas_profundo, profundidad in defectos.reshape(-1, 4):
+        punta_1 = tuple(int(v) for v in puntos[inicio])
+        punta_2 = tuple(int(v) for v in puntos[fin])
+        base = tuple(int(v) for v in puntos[mas_profundo])
+        # OpenCV da la profundidad multiplicada por 256 (en coma fija).
+        es_profundo = profundidad / 256.0 >= FRACCION_MIN_PROFUNDIDAD * radio
+        es_estrecho = angulo(punta_1, base, punta_2) < ANGULO_MAX_HUECO
+        if es_profundo and es_estrecho:
+            huecos.append((punta_1, base, punta_2))
+    return huecos
+
+
+def n_dedos(huecos):
+    """Número de dedos separados: huecos + 1 si hay alguno, 0 si no hay (A, B)."""
+    return len(huecos) + 1 if huecos else 0
+
+
+def angulo_dedos(huecos):
+    """Ángulo entre los dos dedos, medido en la base del hueco que los separa.
+
+    Solo tiene sentido con 2 dedos (un único hueco): la L ronda los 90° y la V los 30-50°.
+    Con otro número de dedos devuelve None.
+    """
+    if len(huecos) != 1:
+        return None
+    punta_1, base, punta_2 = huecos[0]
+    return angulo(punta_1, base, punta_2)
+
+
 def medidas(mascara):
     """Calcula las medidas geométricas de la mano a partir de su máscara.
 
@@ -101,9 +205,13 @@ def medidas(mascara):
         return {'valida': False}
 
     area = cv2.contourArea(contorno)
+    huecos = huecos_entre_dedos(contorno)
     return {
         'valida': True,
         'area': area,
         'tiene_agujero': tiene_agujero(agujeros, area),
         'solidez': solidez(contorno, area),
+        'alargamiento': alargamiento(contorno),
+        'n_dedos': n_dedos(huecos),
+        'angulo_dedos': angulo_dedos(huecos),
     }
