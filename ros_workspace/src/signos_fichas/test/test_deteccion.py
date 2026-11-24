@@ -1,12 +1,14 @@
 """Tests de deteccion.py y evaluar_deteccion.py con imágenes sintéticas."""
 
 import math
+import os
 
 import numpy as np
 import pytest
 
 from signos_fichas.bandeja import calcular_homografia, detectar_aruco, enderezar
-from signos_fichas.deteccion import detectar_clasico, PX_POR_MM, refinar_cajas, theta_en_bandeja
+from signos_fichas.deteccion import (detectar_clasico, detectar_dl, MODELO_DL, PX_POR_MM,
+                                     refinar_cajas, theta_en_bandeja)
 from signos_fichas.evaluar_deteccion import caja_verdad, emparejar, error_angulo_grados
 from signos_fichas.sinteticas import generar
 
@@ -89,3 +91,12 @@ def test_emparejar():
 def test_error_angulo_es_modulo_90_grados():
     assert error_angulo_grados(0.0, math.pi / 2 + math.radians(3)) == pytest.approx(3)
     assert error_angulo_grados(math.radians(44), math.radians(-44)) == pytest.approx(2)
+
+
+@pytest.mark.skipif(not os.path.exists(os.environ.get('MODELO_FICHAS', MODELO_DL)),
+                    reason='no hay pesos de YOLO (variable MODELO_FICHAS o MODELO_DL)')
+@pytest.mark.parametrize('semilla', [1000, 1001, 1002])
+def test_dl_encuentra_todas_las_fichas(semilla):
+    pytest.importorskip('ultralytics')
+    enderezada, verdad = enderezada_sintetica(semilla)
+    comprobar(detectar_dl(enderezada, modelo=os.environ.get('MODELO_FICHAS', MODELO_DL)), verdad)
