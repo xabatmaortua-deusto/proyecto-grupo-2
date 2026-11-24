@@ -60,6 +60,23 @@ def detectar_clasico(enderezada, px_por_mm=PX_POR_MM):
     return fichas
 
 
+def dibujar(enderezada, fichas, px_por_mm=PX_POR_MM):
+    """Dibuja cada ficha: su rectángulo, el número y una flecha hacia el "arriba" del recorte."""
+    imagen = enderezada.copy()
+    margen = 2 * MARGEN_RECORTE_MM * px_por_mm
+    for i, f in enumerate(fichas):
+        centro = np.array([f['x'], f['y']]) * px_por_mm
+        alto, ancho = f['recorte'].shape[:2]
+        rect = (tuple(centro), (ancho + margen, alto + margen), math.degrees(f['angulo']) + 90)
+        cv2.polylines(imagen, [np.intp(np.round(cv2.boxPoints(rect)))], True, (0, 255, 0), 1)
+        punta = centro + 0.8 * alto * np.array([math.cos(f['angulo']), math.sin(f['angulo'])])
+        cv2.arrowedLine(imagen, tuple(np.intp(centro)), tuple(np.intp(punta)), (0, 0, 255), 1,
+                        tipLength=0.3)
+        cv2.putText(imagen, str(i), tuple(np.intp(centro + [alto * 0.6, alto * 0.6])),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1, cv2.LINE_AA)
+    return imagen
+
+
 def _fuera_de_los_aruco(forma, px_por_mm):
     """Máscara (bool) de la enderezada sin los ArUco ni su papel, que también son claros."""
     util = np.ones(forma[:2], bool)
