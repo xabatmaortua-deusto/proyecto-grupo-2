@@ -74,6 +74,33 @@ def test_mismos_dedos_separados_tienen_menos_solidez_que_juntos():
     assert separados < juntos
 
 
+def rectangulo_girado(largo, corto, grados):
+    """Máscara con un rectángulo relleno de largo x corto, girado los grados indicados."""
+    m = lienzo()
+    esquinas = cv2.boxPoints(((100, 100), (largo, corto), grados))
+    cv2.fillPoly(m, [np.int32(esquinas)], 255)
+    return m
+
+
+def test_forma_compacta_alargamiento_cercano_a_1():
+    # Como el puño de la A.
+    m = lienzo()
+    cv2.circle(m, (100, 100), 60, 255, -1)
+    assert abs(medidas(m)['alargamiento'] - 1) < 0.1
+
+
+def test_forma_alargada():
+    # Como la B: tres veces más larga que ancha.
+    assert abs(medidas(rectangulo_girado(150, 50, 0))['alargamiento'] - 3) < 0.15
+
+
+def test_alargamiento_no_cambia_al_inclinar_la_mano():
+    # Por eso se usa minAreaRect y no boundingRect: la B se hace de lado.
+    recta = medidas(rectangulo_girado(150, 50, 0))['alargamiento']
+    inclinada = medidas(rectangulo_girado(150, 50, 35))['alargamiento']
+    assert abs(recta - inclinada) < 0.15
+
+
 def test_se_queda_con_la_mancha_mas_grande():
     # Una mancha pequeña con agujero (ruido) no debe confundirse con la mano.
     m = lienzo()

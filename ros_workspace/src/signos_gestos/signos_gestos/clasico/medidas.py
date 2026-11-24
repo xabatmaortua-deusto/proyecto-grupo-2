@@ -18,7 +18,7 @@ Todas son relativas (cocientes o ángulos), para que no dependan de la distancia
     area           Área del contorno, en píxeles.                     → descartar ruido
     tiene_agujero  Hay un hueco interior grande (círculo índice-pulgar). → O
     n_dedos        (pendiente) Dedos estirados, por los huecos entre ellos. → A/B 0, L/V 2, W 3
-    alargamiento   (pendiente) Lado largo / lado corto del rectángulo mínimo. → B frente a A
+    alargamiento   Lado largo / lado corto del rectángulo de área mínima (≥ 1). → B frente a A
     solidez        Área del contorno / área de la envolvente convexa (0-1). → cerrada o abierta
     angulo_dedos   (pendiente) Ángulo entre las puntas de los dos dedos.  → L frente a V
 
@@ -90,6 +90,23 @@ def solidez(contorno, area):
     return area / area_envolvente
 
 
+def alargamiento(contorno):
+    """Lado largo dividido entre lado corto del rectángulo de área mínima (1 o más).
+
+    cv2.minAreaRect (tema 4) da el rectángulo girado más pequeño que encierra la mano. Se usa en
+    lugar de cv2.boundingRect porque no cambia si la mano está inclinada (la B se hace de lado).
+    La B (dedos juntos y estirados) es alargada; la A (puño) es compacta, cercana a 1.
+
+    Depende de que la máscara no incluya el antebrazo: si lo incluye, todo parece alargado
+    (lo recorta clasico/segmentar.py, tarea C3).
+    """
+    (_, _), (ancho, alto), _ = cv2.minAreaRect(contorno)
+    corto, largo = sorted((ancho, alto))
+    if corto <= 0:
+        return 0.0
+    return largo / corto
+
+
 def medidas(mascara):
     """Calcula las medidas geométricas de la mano a partir de su máscara.
 
@@ -106,4 +123,5 @@ def medidas(mascara):
         'area': area,
         'tiene_agujero': tiene_agujero(agujeros, area),
         'solidez': solidez(contorno, area),
+        'alargamiento': alargamiento(contorno),
     }
