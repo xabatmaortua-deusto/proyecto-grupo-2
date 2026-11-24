@@ -1,0 +1,12 @@
+# Dependencias pip extra del proyecto. Dentro del contenedor:
+#   pip install --break-system-packages -r requirements.txt
+# Lo instalado con pip se pierde si se borra el contenedor: hay que volver a instalarlo.
+
+# numpy 1.x: los paquetes de ROS 2 Jazzy (cv_bridge...) están compilados con numpy 1.x
+numpy<2
+# OpenCV >= 4.7 para cv2.aruco.ArucoDetector (el del contenedor, de apt, es 4.6).
+# Desde 4.12, opencv-python pide numpy 2: por eso el tope.
+opencv-python>=4.7,<4.12
+
+# Fichas, método DL: detección con YOLO
+ultralytics
