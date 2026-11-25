@@ -56,21 +56,26 @@ def theta_en_bandeja(angulo, giro):
 
 def detectar_clasico(enderezada, px_por_mm=PX_POR_MM):
     """Detecta las fichas con un umbral sobre el brillo: la madera es clara y el fondo oscuro."""
-    brillo = cv2.cvtColor(enderezada, cv2.COLOR_BGR2HSV)[:, :, 2]
-    util = _fuera_de_los_aruco(brillo.shape, px_por_mm)
-    otsu, _ = cv2.threshold(brillo[util].reshape(-1, 1), 0, 255,
-                            cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    # Sin fichas, Otsu separaría el ruido del fondo: se exige un contraste mínimo
-    umbral = max(otsu, np.median(brillo[util]) + CONTRASTE_MIN)
-    binaria = ((brillo > umbral) & util).astype(np.uint8) * 255
-    binaria = cv2.morphologyEx(binaria, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
-    contornos, _ = cv2.findContours(binaria, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contornos, _ = cv2.findContours(zonas_claras(enderezada, px_por_mm), cv2.RETR_EXTERNAL,
+                                    cv2.CHAIN_APPROX_SIMPLE)
     fichas = []
     for contorno in contornos:
         rect = _rectangulo_de_ficha(contorno, px_por_mm)
         if rect is not None:
             fichas.append(_ficha(enderezada, rect, px_por_mm, 1.0))
     return fichas
+
+
+def zonas_claras(enderezada, px_por_mm=PX_POR_MM):
+    """Binaria (0/255) de lo que es más claro que el fondo, sin los ArUco: madera, papel..."""
+    brillo = cv2.cvtColor(enderezada, cv2.COLOR_BGR2HSV)[:, :, 2]
+    util = fuera_de_los_aruco(brillo.shape, px_por_mm)
+    otsu, _ = cv2.threshold(brillo[util].reshape(-1, 1), 0, 255,
+                            cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    # Sin fichas, Otsu separaría el ruido del fondo: se exige un contraste mínimo
+    umbral = max(otsu, np.median(brillo[util]) + CONTRASTE_MIN)
+    binaria = ((brillo > umbral) & util).astype(np.uint8) * 255
+    return cv2.morphologyEx(binaria, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
 
 
 def detectar_dl(enderezada, px_por_mm=PX_POR_MM, modelo=MODELO_DL,
@@ -92,7 +97,7 @@ def refinar_cajas(enderezada, cajas, confianzas, px_por_mm=PX_POR_MM):
     contorno más grande da el centro y el ángulo. Las cajas sin una ficha válida se descartan.
     """
     alto, ancho = enderezada.shape[:2]
-    util = _fuera_de_los_aruco(enderezada.shape, px_por_mm)
+    util = fuera_de_los_aruco(enderezada.shape, px_por_mm)
     margen = MARGEN_CAJA_MM * px_por_mm
     fichas = []
     for (x1, y1, x2, y2), confianza in zip(cajas, confianzas):
@@ -129,7 +134,7 @@ def dibujar(enderezada, fichas, px_por_mm=PX_POR_MM):
     return imagen
 
 
-def _fuera_de_los_aruco(forma, px_por_mm):
+def fuera_de_los_aruco(forma, px_por_mm):
     """Máscara (bool) de la enderezada sin los ArUco ni su papel, que también son claros."""
     util = np.ones(forma[:2], bool)
     m = (LADO_ARUCO_MM / 2 + MARGEN_ARUCO_MM) * px_por_mm

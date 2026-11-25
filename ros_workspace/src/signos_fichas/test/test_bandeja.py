@@ -36,6 +36,17 @@ def test_con_un_aruco_tapado_sigue_funcionando():
     assert calcular_homografia({0: esquinas[0], 1: esquinas[1]}) is None
 
 
+def test_con_un_solo_aruco_si_se_pide():
+    # Para datasets con fotos donde solo se ve un ArUco: sus 4 esquinas bastan para el plano,
+    # pero a 30 cm de él el error ya es de varios mm (vale para etiquetar, no para el robot)
+    imagen, verdad = generar(7)
+    esquinas = {2: detectar_aruco(imagen)[2]}
+    assert calcular_homografia(esquinas) is None
+    mm, px = centros_reales(verdad)
+    error = np.linalg.norm(px_a_mm(calcular_homografia(esquinas, minimo=1), px) - mm, axis=1)
+    assert error.max() < 8.0  # mm
+
+
 def test_enderezada_tiene_madera_en_las_fichas():
     imagen, verdad = generar(4)
     ender = enderezar(imagen, calcular_homografia(detectar_aruco(imagen)), px_por_mm=2.0)
