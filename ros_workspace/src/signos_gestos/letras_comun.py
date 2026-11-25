@@ -5,7 +5,7 @@ Lo usan los tres scripts:
   entrenar_letras.py    entrena el clasificador con esos ejemplos
   reconocer_letras.py   reconoce letras y palabras en directo (webcam) o en vídeos
 
-Idea: con las reglas escritas a mano (prueba_mediapipe_letras.py) cada letra nueva necesita
+Idea: con las reglas escritas a mano (herramientas/pruebas/prueba_mediapipe_letras.py) cada letra nueva necesita
 umbrales nuevos y rompe las anteriores. En vez de eso, MediaPipe nos da los 21 puntos y un
 CLASIFICADOR aprende de ejemplos grabados por nosotros qué forma tiene cada letra.
 

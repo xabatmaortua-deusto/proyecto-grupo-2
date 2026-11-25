@@ -8,7 +8,7 @@ Este documento explica **qué hay hecho, cómo se hace la solución clásica ("m
 
 ## 1. Dónde estamos
 
-Hay una **prueba inicial con MediaPipe**: [prueba_mediapipe_letras.py](prueba_mediapipe_letras.py).
+Hay una **prueba inicial con MediaPipe**: [herramientas/pruebas/prueba_mediapipe_letras.py](herramientas/pruebas/prueba_mediapipe_letras.py).
 
 - MediaPipe detecta la mano y devuelve **21 puntos** (muñeca y 4 por dedo).
 - A partir de los puntos se calcula el **ángulo de cada dedo** y la **distancia entre las puntas**.
@@ -25,11 +25,11 @@ Resultado con los tres vídeos de prueba (los tres deletrean LOBO):
 
 Por cada vídeo se generan en `resultados_mediapipe/` un vídeo anotado, una gráfica de la línea de tiempo y un CSV con las medidas.
 
-**Cómo ejecutarlo** (desde la carpeta `Proyecto`):
+**Cómo ejecutarlo** (desde la carpeta `signos_gestos/`, la del `package.xml`; los vídeos van en esa misma carpeta):
 
 ```powershell
-..\.venvVision\Scripts\python.exe prueba_mediapipe_letras.py            # todos los vídeos
-..\.venvVision\Scripts\python.exe prueba_mediapipe_letras.py --ver      # viéndolo en directo
+python herramientas/pruebas/prueba_mediapipe_letras.py            # todos los vídeos
+python herramientas/pruebas/prueba_mediapipe_letras.py --ver      # viéndolo en directo
 ```
 
 **Límites de esta prueba:**

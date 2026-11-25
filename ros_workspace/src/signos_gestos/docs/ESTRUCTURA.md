@@ -96,7 +96,7 @@ from signos_gestos.comun.palabra import Palabra
 | `reconocer_letras.py` (clase `ReconocedorLetras`) | `signos_gestos/dl/reconocer.py` | Ainhoa | Mover. La parte de webcam/vídeo puede quedarse como herramienta |
 | `grabar_letras.py`, `entrenar_letras.py` | `herramientas/` | Ainhoa | Mover |
 | — | `herramientas/analisis_medidas.ipynb` | Ane (C6) | Por hacer |
-| `prueba_mediapipe_letras.py`, `Practica5_reto_mediapipe.ipynb` | `herramientas/pruebas/` | Keltse | Mover |
+| `prueba_mediapipe_letras.py`, `Practica5_reto_mediapipe.ipynb` | `herramientas/pruebas/` | Keltse | Hecho |
 | — | `signos_gestos/nodo_gestos.py` | Xabier (T5-T6, A5) | Por hacer |
 | `requirements.txt` | Se junta con el `requirements.txt` de la raíz del repo | Quien haga la Fase 0 | Por hacer |
 

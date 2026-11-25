@@ -175,10 +175,11 @@ def imprimir(filas):
 
 # ------------------------------------------------------------------ vías
 def _scripts_de_la_raiz():
-    """reconocer_letras.py y prueba_mediapipe_letras.py siguen en la raíz de signos_gestos/.
+    """Pone la carpeta signos_gestos/ (la del package.xml) en el path de Python.
 
-    PROVISIONAL: cuando se muevan a signos_gestos/dl/ (ESTRUCTURA.md) se importan del paquete
-    y esta función sobra.
+    Desde ahí se importan reconocer_letras.py y letras_comun.py, que siguen en esa carpeta
+    (PROVISIONAL: cuando se muevan a signos_gestos/dl/, ESTRUCTURA.md, se importan del paquete),
+    y herramientas/pruebas/prueba_mediapipe_letras.py.
     """
     if RAIZ not in sys.path:
         sys.path.insert(0, RAIZ)
@@ -194,9 +195,10 @@ def crear_rf():
 def crear_reglas():
     """Referencia (T4): MediaPipe + reglas escritas a mano (prueba_mediapipe_letras.py)."""
     _scripts_de_la_raiz()
+    from herramientas.pruebas.prueba_mediapipe_letras import (estado_dedos, letra_por_reglas,
+                                                              medidas)
     import mediapipe as mp
     from letras_comun import crear_detector
-    from prueba_mediapipe_letras import estado_dedos, letra_por_reglas, medidas
 
     detector = crear_detector()
     t = {'ms': 0}

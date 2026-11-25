@@ -10,12 +10,12 @@ Idea (la misma de la Práctica 5, pero con la MANO en vez del cuerpo):
   4. Una pequeña MÁQUINA DE ESTADOS (como el contador de sentadillas) sólo acepta una letra
      cuando se mantiene estable un rato, y así va formando la palabra.
 
-Uso:
-  python prueba_mediapipe_letras.py                 # procesa todos los .MOV/.mp4 de esta carpeta
-  python prueba_mediapipe_letras.py IMG_2485.MOV    # sólo ese vídeo
-  python prueba_mediapipe_letras.py --ver           # además muestra el vídeo mientras procesa (q = salir)
+Uso, desde la carpeta signos_gestos/ (la del package.xml):
+  python herramientas/pruebas/prueba_mediapipe_letras.py              # todos los .MOV/.mp4 de signos_gestos/
+  python herramientas/pruebas/prueba_mediapipe_letras.py IMG_2485.MOV # sólo ese vídeo
+  python herramientas/pruebas/prueba_mediapipe_letras.py --ver        # además lo muestra (q = salir)
 
-Resultados en ./resultados_mediapipe/:
+Resultados en signos_gestos/resultados_mediapipe/:
   <video>_anotado.mp4      vídeo con el esqueleto de la mano, la letra y la palabra
   <video>_datos.csv        medidas fotograma a fotograma (para ajustar umbrales)
   <video>_linea_tiempo.png gráfica de qué dedos están estirados y qué letra sale en cada momento
@@ -25,6 +25,7 @@ import csv
 import glob
 import math
 import os
+import sys
 import urllib.request
 
 import cv2
@@ -36,14 +37,19 @@ import numpy as np
 from mediapipe.tasks import python as mpt
 from mediapipe.tasks.python import vision
 
-# La palabra (máquina de estados) se construye con la clase común a las dos vías
-from signos_gestos.comun.palabra import Palabra
+# Este script vive en herramientas/pruebas/: el modelo, los vídeos y los resultados están en la
+# carpeta del paquete (RAIZ, dos niveles más arriba), y desde ahí se importa signos_gestos.
+RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if RAIZ not in sys.path:
+    sys.path.insert(0, RAIZ)
 
-AQUI = os.path.dirname(os.path.abspath(__file__))
-MODELO = os.path.join(AQUI, "hand_landmarker.task")
+# La palabra (máquina de estados) se construye con la clase común a las dos vías
+from signos_gestos.comun.palabra import Palabra  # noqa: E402
+
+MODELO = os.path.join(RAIZ, "hand_landmarker.task")     # el mismo que usa letras_comun.py
 URL_MODELO = ("https://storage.googleapis.com/mediapipe-models/hand_landmarker/"
               "hand_landmarker/float16/1/hand_landmarker.task")
-SALIDA = os.path.join(AQUI, "resultados_mediapipe")
+SALIDA = os.path.join(RAIZ, "resultados_mediapipe")
 
 # ------------------------------------------------------------------ los 21 puntos de la mano
 # 0 = muñeca. Cada dedo tiene 4 puntos, de la base (MCP) a la punta (TIP):
@@ -281,7 +287,7 @@ def procesar(video, ver=False):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("videos", nargs="*", help="vídeos a procesar (por defecto, todos los de la carpeta)")
+    ap.add_argument("videos", nargs="*", help="vídeos a procesar (por defecto, todos los de signos_gestos/)")
     ap.add_argument("--ver", action="store_true", help="mostrar el vídeo anotado mientras se procesa")
     args = ap.parse_args()
 
@@ -291,7 +297,7 @@ def main():
     os.makedirs(SALIDA, exist_ok=True)
 
     videos = args.videos or sorted({f for ext in ("*.MOV", "*.mov", "*.mp4", "*.MP4")
-                                    for f in glob.glob(os.path.join(AQUI, ext))})
+                                    for f in glob.glob(os.path.join(RAIZ, ext))})
     if not videos:
         raise SystemExit("No hay vídeos que procesar.")
     resultados = {os.path.basename(v): procesar(v, args.ver) for v in videos}
