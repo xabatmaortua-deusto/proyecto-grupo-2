@@ -159,7 +159,7 @@ python3 -m signos_fichas.deteccion fotos/*.png --metodo dl --salida dibujos
 
 ## Cómo ha ido el trabajo
 
-Se ha trabajado por tardes (hora de Madrid), y cada tarde acaba en unos pocos commits.
+Se ha trabajado por tardes, y cada tarde acaba en unos commits.
 
 | Día | Qué se hizo |
 |---|---|
@@ -168,9 +168,6 @@ Se ha trabajado por tardes (hora de Madrid), y cada tarde acaba en unos pocos co
 | 24-11 | Mikel integra `bandeja.py`, `sinteticas.py` y el plan de fichas (PR #3). Por la tarde: detección clásica y DL, evaluación, dataset de YOLO con sintéticas, primer YOLO y este documento (PR #7, 3 commits). |
 | 25-11 | Paso a las fotos reales del 23-11: dataset de YOLO con un solo ArUco e imágenes compuestas, evaluación con 13 fotos reales y documentación (3 commits). |
 
-- **Horas de los commits.** Cada commit junta por temas el trabajo de una tarde y lleva la hora en que se terminó su
-  última parte. Los de la PR #7 se reorganizaron dos veces (el 24-11 antes de fusionarla y el 25-11), así que sus
-  horas (19:52-20:17) son aproximadas: la de cuándo se guardó el último fichero de cada grupo.
 - **Las fotos reales no son como el diseño.** No había bandeja (cartulina negra) y solo se ve el ArUco 2; las fichas
   son de Scrabble, de unos 20 × 22 mm, con un número pequeño y sin raya; hay letras A-G y L, pero no O, V ni W. Por
   eso el 25-11 se trabajó en usar un solo ArUco y en el dataset de compuestas.
