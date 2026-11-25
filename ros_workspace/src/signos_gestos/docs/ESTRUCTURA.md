@@ -87,7 +87,7 @@ from signos_gestos.comun.palabra import Palabra
 | Hoy (después de integrar TrabajoVision) | En la entrega | Responsable | Estado |
 |---|---|---|---|
 | `PLAN.md`, `REPARTO_TAREAS.md` | `docs/` | — | Mover |
-| Clase `Palabra` dentro de `prueba_mediapipe_letras.py` | `signos_gestos/comun/palabra.py` | Keltse (autora) | Mover. Así la vía clásica no depende de MediaPipe |
+| Clase `Palabra` dentro de `prueba_mediapipe_letras.py` | `signos_gestos/comun/palabra.py` | Keltse (autora) | Hecho. Así la vía clásica no depende de MediaPipe |
 | — | `signos_gestos/comun/evaluar.py` | Keltse (T1) | Hecho (falta el dataset de test) |
 | — | `signos_gestos/clasico/segmentar.py` | Ainhoa (C1-C4) | Por hacer |
 | — | `signos_gestos/clasico/medidas.py` | Ane (C5) | Por hacer |
@@ -135,5 +135,5 @@ y la evaluación con `classification_report` y matriz de confusión (Práctica 3
 ## Decisiones pendientes
 
 - [ ] ¿`dataset_letras/*.npz` va en git (como decía TrabajoVision) o en el Drive (como dice `CLAUDE.md`)? Hay que hablarlo con todo el grupo.
-- [ ] Mover `Palabra` a `comun/` (lo hace Keltse o le pedimos permiso).
+- [x] Mover `Palabra` a `comun/` (Keltse).
 - [ ] `CLAUDE.md` dice que las herramientas van en `herramientas/` de la raíz del repo; nosotros las dejamos dentro de `signos_gestos/` para tenerlo todo junto. Avisar al grupo y actualizar `CLAUDE.md` con un pull request.

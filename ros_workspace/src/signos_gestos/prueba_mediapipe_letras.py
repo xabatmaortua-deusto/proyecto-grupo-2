@@ -36,6 +36,9 @@ import numpy as np
 from mediapipe.tasks import python as mpt
 from mediapipe.tasks.python import vision
 
+# La palabra (máquina de estados) se construye con la clase común a las dos vías
+from signos_gestos.comun.palabra import Palabra
+
 AQUI = os.path.dirname(os.path.abspath(__file__))
 MODELO = os.path.join(AQUI, "hand_landmarker.task")
 URL_MODELO = ("https://storage.googleapis.com/mediapipe-models/hand_landmarker/"
@@ -65,9 +68,6 @@ PULGAR_FUERA = 0.7  # punta pulgar–punta índice > 0.7 × palma => pulgar sepa
 JUNTOS = 0.45       # puntas índice–corazón < 0.45 × palma => dedos juntos (B ≈ 0,3), si no separados (V)
 CERCA = 0.6         # O: punta pulgar–punta índice < 0.6 × palma (≈0,25-0,5 según el ángulo de la mano)
 SEPARADO_O = 0.6    # O: punta índice–punta corazón > 0.6 × palma (en la O ≈0,8-1,1; en la B ≈0,3)
-
-ESTABLE = 10        # fotogramas seguidos con la misma letra para aceptarla (≈ 0,33 s a 30 fps)
-HUECO = 8           # fotogramas sin letra que separan dos letras iguales seguidas (p. ej. «LL»)
 
 
 # ------------------------------------------------------------------ geometría
@@ -160,40 +160,6 @@ def letra_por_reglas(m, est):
     if i == c == a == me == "D" and not pinza:
         return "A"
     return "?"
-
-
-# ------------------------------------------------------------------ palabra (máquina de estados)
-class Palabra:
-    """Acepta una letra cuando se repite ESTABLE fotogramas seguidos.
-
-    - No vuelve a añadir la misma letra mientras se mantiene el gesto.
-    - Para escribir dos letras iguales seguidas hay que «soltar» el gesto al menos HUECO
-      fotogramas (mano fuera de cuadro o gesto no reconocido) y volver a hacerlo.
-    """
-
-    def __init__(self):
-        self.texto = ""
-        self.candidata, self.cuenta = None, 0     # letra que se está repitiendo y cuántas veces
-        self.ultima = None                        # última letra añadida
-        self.sin_letra = 0                        # fotogramas seguidos sin letra válida
-
-    def actualizar(self, letra):
-        if letra in (None, "?"):
-            self.sin_letra += 1
-            if self.sin_letra >= HUECO:
-                self.ultima = None                # se ha soltado: se permite repetir letra
-            self.candidata, self.cuenta = None, 0
-            return None
-        self.sin_letra = 0
-        if letra == self.candidata:
-            self.cuenta += 1
-        else:
-            self.candidata, self.cuenta = letra, 1
-        if self.cuenta == ESTABLE and letra != self.ultima:
-            self.texto += letra
-            self.ultima = letra
-            return letra                          # letra nueva aceptada en este fotograma
-        return None
 
 
 # ------------------------------------------------------------------ dibujo

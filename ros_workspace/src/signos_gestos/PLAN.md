@@ -42,7 +42,7 @@ Las reglas a mano no escalan a todo el abecedario: muchas letras se parecen y ca
 
 - Letras: las 30 del alfabeto dactilológico de la LSE (con CH, LL, Ñ y RR), más una clase `nada` para la mano en reposo o cambiando de letra. La lista está en `ALFABETO`, dentro de [letras_comun.py](letras_comun.py).
 - Algunas letras llevan **movimiento**. Por eso no se clasifica un fotograma suelto, sino una **ventana de 16 fotogramas** (unos 0,5 s): la forma de la mano al principio y al final, y el recorrido de la muñeca y de la punta del índice. No hace falta decir a mano qué letras se mueven.
-- La palabra se construye con la misma clase `Palabra` de la prueba inicial.
+- La palabra se construye con la clase común `Palabra` (`signos_gestos/comun/palabra.py`).
 - Ofrece la **interfaz común** `ReconocedorLetras().reconocer(frame_bgr)`.
 
 | Paso | Script | Qué hace |
@@ -146,7 +146,7 @@ Los umbrales se eligen **con datos**, como se hizo con MediaPipe:
 
 ### 2.6 Construcción de la palabra
 
-La clase `Palabra` de `prueba_mediapipe_letras.py` **se reutiliza tal cual**, porque solo recibe una letra por fotograma, venga del método que venga:
+La clase `Palabra` (`signos_gestos/comun/palabra.py`, sacada de `prueba_mediapipe_letras.py`) **sirve para las dos vías**, porque solo recibe una letra por fotograma, venga del método que venga:
 - Una letra se acepta si aparece **10 fotogramas seguidos** (unos 0,33 s a 30 fps).
 - No se repite mientras se mantiene el gesto.
 - Para escribir una letra doble hay que **soltar el gesto** al menos 8 fotogramas y volver a hacerlo.

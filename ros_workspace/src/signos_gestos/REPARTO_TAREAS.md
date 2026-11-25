@@ -32,7 +32,7 @@ def reconocer(frame_bgr) -> str:
 
 - Vía clásica: `clasico/reconocer.py`
 - Vía deep learning: `deep/reconocer.py`
-- Construcción de la palabra: la clase `Palabra` de `prueba_mediapipe_letras.py`, que pasará a un módulo común `comun/palabra.py`.
+- Construcción de la palabra: la clase `Palabra` del módulo común `signos_gestos/comun/palabra.py` (antes en `prueba_mediapipe_letras.py`).
 
 ### 0.2 Grabar el dataset propio (todos, lo coordina Ainhoa)
 

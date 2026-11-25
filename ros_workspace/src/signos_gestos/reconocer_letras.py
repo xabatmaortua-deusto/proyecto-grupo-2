@@ -14,7 +14,7 @@ Desde otro código (la interfaz común acordada en REPARTO_TAREAS.md):
   rec = ReconocedorLetras()
   letra = rec.reconocer(frame_bgr)   # 'A', 'B', ..., 'CH', 'LL', 'Ñ', ... o '?'
 
-La construcción de la palabra es la misma clase Palabra de prueba_mediapipe_letras.py.
+La construcción de la palabra es la clase común signos_gestos/comun/palabra.py.
 """
 import argparse
 import csv
@@ -28,7 +28,7 @@ import numpy as np
 
 from letras_comun import (AQUI, MODELO_LETRAS, NADA, caracteristicas, crear_detector, detectar,
                           dibujar_mano, texto)
-from prueba_mediapipe_letras import Palabra
+from signos_gestos.comun.palabra import Palabra
 
 SALIDA = os.path.join(AQUI, "resultados_letras")
 UMBRAL = 0.5     # si el modelo está menos seguro que esto, decimos «?»
