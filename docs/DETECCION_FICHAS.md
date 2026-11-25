@@ -75,6 +75,12 @@ con el ángulo de un cuadrado, así que el ángulo se aprende mal. Además el gi
 - *Fotos reales* (`--fotos`): las cajas las propone `detectar_clasico` y se guardan dibujadas en `revisar/`. Hay que
   revisarlas a mano y quitar o corregir las malas antes de entrenar. Es más rápido que etiquetar desde cero y no
   necesita SAM, pero no sirve para el conjunto de test (si no, el DL aprendería los errores del clásico).
+- *Compuestas* (`--fotos ... --compuestas N`, con `compuestas.py`): de cada foto real se sacan el fondo sin fichas
+  (`cv2.inpaint`) y las fichas sueltas con su silueta, y se pegan al azar, giradas, con sombra y con otra luz
+  (exposición, degradado, color, enfoque, ruido, JPEG y velo). Las cajas salen de dónde se pega cada ficha, así que
+  hay muchas imágenes reales distintas sin etiquetar nada a mano. Con los vídeos del 23-11: 4000 en `train` y 500
+  en `val`.
+- `--min-aruco 1` deja usar fotos donde solo se ve un ArUco, como las del 23-11.
 - La validación se separa por vídeo: cada llamada añade a `train` o a `val`.
 
 **Entrenamiento** (desde la raíz del repo, mejor con GPU):
@@ -117,6 +123,26 @@ En las sintéticas los dos métodos son perfectos, así que **la comparación qu
 que es donde el DL debería aguantar mejor. Con una sombra fuerte simulada (la imagen multiplicada por una rampa de
 0,2 a 1) los dos siguen sin fallar, porque el contraste madera/fondo es muy grande.
 
+**Primeros resultados con fotos reales** (25-11): 13 fotos de la sesión del 23-11 en las que se ve el ArUco 2
+(`--min-aruco 1`), con 100 fichas, de las que 34 tocan a otra. El DL es el YOLO de arriba, entrenado solo con
+sintéticas. Tiempos en CPU:
+
+```bash
+python3 -m signos_fichas.evaluar_deteccion ros_workspace/datasets/fichas/test/2026-11-23 --metodo clasico dl \
+    --min-aruco 1 --modelo ros_workspace/modelos/yolo_fichas.pt
+```
+
+| Método | Fichas | Perdidas (de ellas, juntas) | Falsas | Error del centro (mm), media / máx | Error del ángulo (°), media / máx | ms por imagen |
+|---|---|---|---|---|---|---|
+| Clásico | 100 | 38 (34) | 0 | — | — | 2,4 |
+| DL | 100 | 49 (34) | 0 | 0,21 / 1,52 | 0,45 / 2,63 | 35,8 |
+
+- La verdad de estas fotos se hizo partiendo de las cajas del clásico, así que su error sale 0 y no se pone; el del
+  DL está medido respecto al clásico.
+- Los dos pierden todas las fichas que se tocan (el clásico, a propósito). De las 66 separadas, el clásico pierde 4
+  y el DL 15: el YOLO de sintéticas no basta con fotos reales, y por eso se ha hecho el dataset de compuestas.
+- No sirven como test final: son de la misma sesión que los vídeos de las compuestas.
+
 | | Clásico | DL |
 |---|---|---|
 | Qué hace falta | Bandeja oscura y fichas separadas | Fotos etiquetadas y entrenar |
@@ -131,10 +157,34 @@ python3 -m signos_fichas.deteccion foto1.png foto2.png              # muestra lo
 python3 -m signos_fichas.deteccion fotos/*.png --metodo dl --salida dibujos
 ```
 
+## Cómo ha ido el trabajo
+
+Se ha trabajado por tardes (hora de Madrid), y cada tarde acaba en unos pocos commits.
+
+| Día | Qué se hizo |
+|---|---|
+| 19-11 | Xabat sube el diseño común (`CLAUDE.md`) y el reparto de tareas. |
+| 23-11 | Fase 0 (paquetes y mensajes, Xabier). Primera sesión de laboratorio (18:27-18:52): 62 fotos y 6 vídeos de fichas. |
+| 24-11 | Mikel integra `bandeja.py`, `sinteticas.py` y el plan de fichas (PR #3). Por la tarde: detección clásica y DL, evaluación, dataset de YOLO con sintéticas, primer YOLO y este documento (PR #7, 3 commits). |
+| 25-11 | Paso a las fotos reales del 23-11: dataset de YOLO con un solo ArUco e imágenes compuestas, evaluación con 13 fotos reales y documentación (3 commits). |
+
+- **Horas de los commits.** Cada commit junta por temas el trabajo de una tarde y lleva la hora en que se terminó su
+  última parte. Los de la PR #7 se reorganizaron dos veces (el 24-11 antes de fusionarla y el 25-11), así que sus
+  horas (19:52-20:17) son aproximadas: la de cuándo se guardó el último fichero de cada grupo.
+- **Las fotos reales no son como el diseño.** No había bandeja (cartulina negra) y solo se ve el ArUco 2; las fichas
+  son de Scrabble, de unos 20 × 22 mm, con un número pequeño y sin raya; hay letras A-G y L, pero no O, V ni W. Por
+  eso el 25-11 se trabajó en usar un solo ArUco y en el dataset de compuestas.
+- **El YOLO con compuestas aún no se ha entrenado**: en la GPU del portátil (RTX 3050 Ti en WSL) se cae WSL al
+  empezar la primera época.
+
 ## Pendiente
 
-- **Fotos reales**: ajustar `CONTRASTE_MIN`, `MARGEN_ARUCO_MM` y `TOLERANCIA_MM`, y medir la ficha real.
-- Reentrenar YOLO con fotos reales (partiendo de los pesos de las sintéticas) y repetir la evaluación con un vídeo de
-  test que no se use para nada más.
+- **Entrenar YOLO con las compuestas** y repetir la evaluación con fotos reales. En la GPU del portátil se cae WSL:
+  hay que hacerlo en CPU (lento) o en otro PC.
+- **Fotos de otra sesión** para el test final, con la bandeja y las fichas definitivas: las 13 de ahora son de la
+  misma sesión que las compuestas.
+- Confirmar con el grupo la ficha real (en las fotos, 20 × 22 mm y sin raya; en el diseño, 18 × 20 mm con raya) y
+  ajustar `CONTRASTE_MIN`, `MARGEN_ARUCO_MM` y `TOLERANCIA_MM`.
 - Decidir con la etapa de letras el `px_por_mm` de la enderezada: a 2 px/mm la letra mide unos 20 px de alto.
-- Fichas que se tocan: ahora se descartan (el montaje garantiza una separación mínima).
+- Fichas que se tocan: ahora se descartan (el montaje garantiza una separación mínima). En las fotos del 23-11 se
+  tocan 34 de 100.
