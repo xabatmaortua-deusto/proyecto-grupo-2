@@ -8,11 +8,13 @@ imagen de la detección, las fichas perdidas y las falsas, el error del centro (
 
 La verdad es el .json que guarda sinteticas.py junto a cada imagen:
 {'fichas': [{'letra', 'x', 'y', 'theta'}, ...]} en mm y rad de la bandeja. Para fotos reales
-vale el mismo formato.
+vale el mismo formato; con --min-aruco 1 valen fotos donde solo se ve un ArUco. Si una ficha
+real lleva 'junta': true (toca a otra), se cuenta aparte cuántas de las perdidas son juntas: el
+clásico las descarta a propósito, porque el montaje garantiza que las fichas están separadas.
 
 Uso:
     python3 -m signos_fichas.evaluar_deteccion carpeta [--metodo clasico dl]
-        [--modelo yolo_fichas.pt] [--dibujos carpeta_salida]
+        [--modelo yolo_fichas.pt] [--dibujos carpeta_salida] [--min-aruco 1]
 """
 
 import argparse
@@ -27,7 +29,7 @@ import cv2
 import numpy as np
 
 from signos_fichas import deteccion
-from signos_fichas.bandeja import calcular_homografia, detectar_aruco, enderezar
+from signos_fichas.compuestas import enderezar_foto
 
 DISTANCIA_MAX_MM = 5.0
 
@@ -71,7 +73,8 @@ def error_angulo_grados(angulo, theta):
     return abs(math.degrees(math.remainder(angulo - theta, math.pi / 2)))
 
 
-def evaluar(imagenes, metodo, px_por_mm=deteccion.PX_POR_MM, modelo=None, dibujos=None):
+def evaluar(imagenes, metodo, px_por_mm=deteccion.PX_POR_MM, modelo=None, dibujos=None,
+            min_aruco=3):
     """Pasa la detección por las imágenes y devuelve un dict con las métricas."""
     if metodo == 'dl':
         detectar = functools.partial(deteccion.detectar_dl, px_por_mm=px_por_mm,
@@ -79,16 +82,15 @@ def evaluar(imagenes, metodo, px_por_mm=deteccion.PX_POR_MM, modelo=None, dibujo
     else:
         detectar = functools.partial(deteccion.detectar_clasico, px_por_mm=px_por_mm)
     tiempos, errores_mm, errores_grados = [], [], []
-    n_fichas = perdidas = falsas = 0
+    n_fichas = perdidas = falsas = juntas = juntas_perdidas = 0
     for ruta in imagenes:
         imagen = cv2.imread(ruta)
         with open(os.path.splitext(ruta)[0] + '.json', encoding='utf-8') as f:
             verdad = json.load(f)['fichas']
-        homografia = calcular_homografia(detectar_aruco(imagen))
-        if homografia is None:
-            print(f'{ruta}: no se ven 3 ArUco, se salta')
+        enderezada = enderezar_foto(imagen, min_aruco, px_por_mm)
+        if enderezada is None:
+            print(f'{ruta}: no se ven {min_aruco} ArUco, se salta')
             continue
-        enderezada = enderezar(imagen, homografia, px_por_mm)
         if not tiempos:
             detectar(enderezada)  # la primera vez se carga el modelo: no se cuenta
         inicio = time.perf_counter()
@@ -97,6 +99,10 @@ def evaluar(imagenes, metodo, px_por_mm=deteccion.PX_POR_MM, modelo=None, dibujo
         parejas = emparejar(fichas, verdad)
         n_fichas += len(verdad)
         perdidas += len(verdad) - len(parejas)
+        encontradas = {j for _, j, _ in parejas}
+        juntas += sum(v.get('junta', False) for v in verdad)
+        juntas_perdidas += sum(v.get('junta', False) for j, v in enumerate(verdad)
+                               if j not in encontradas)
         falsas += len(fichas) - len(parejas)
         errores_mm += [d for _, _, d in parejas]
         errores_grados += [error_angulo_grados(fichas[i]['angulo'], verdad[j]['theta'])
@@ -108,7 +114,8 @@ def evaluar(imagenes, metodo, px_por_mm=deteccion.PX_POR_MM, modelo=None, dibujo
     errores_mm = np.array(errores_mm or [np.nan])
     errores_grados = np.array(errores_grados or [np.nan])
     return {'metodo': metodo, 'imagenes': len(tiempos), 'fichas': n_fichas,
-            'perdidas': perdidas, 'falsas': falsas,
+            'perdidas': perdidas, 'falsas': falsas, 'juntas': juntas,
+            'juntas_perdidas': juntas_perdidas,
             'error_mm_medio': errores_mm.mean(), 'error_mm_max': errores_mm.max(),
             'error_grados_medio': errores_grados.mean(), 'error_grados_max': errores_grados.max(),
             'ms_por_imagen': 1000 * np.mean(tiempos or [np.nan])}
@@ -122,18 +129,21 @@ def main():
     p.add_argument('--modelo', help=f'pesos de YOLO para dl ({deteccion.MODELO_DL})')
     p.add_argument('--px-por-mm', type=float, default=deteccion.PX_POR_MM)
     p.add_argument('--dibujos', help='carpeta donde guardar las detecciones dibujadas')
+    p.add_argument('--min-aruco', type=int, default=3,
+                   help='ArUco que tienen que verse en cada foto (3; 1 para fotos sin bandeja)')
     args = p.parse_args()
     imagenes = sorted(r for r in glob.glob(os.path.join(args.carpeta, '*'))
                       if r.lower().endswith(('.png', '.jpg'))
                       and os.path.exists(os.path.splitext(r)[0] + '.json'))
     if args.dibujos:
         os.makedirs(args.dibujos, exist_ok=True)
-    print('| Método | Imágenes | Fichas | Perdidas | Falsas | Error centro (mm) media / máx '
-          '| Error ángulo (°) media / máx | ms por imagen |')
+    print('| Método | Imágenes | Fichas | Perdidas (juntas) | Falsas '
+          '| Error centro (mm) media / máx | Error ángulo (°) media / máx | ms por imagen |')
     print('|---|---|---|---|---|---|---|---|')
     for metodo in args.metodo:
-        r = evaluar(imagenes, metodo, args.px_por_mm, args.modelo, args.dibujos)
-        print(f"| {r['metodo']} | {r['imagenes']} | {r['fichas']} | {r['perdidas']} "
+        r = evaluar(imagenes, metodo, args.px_por_mm, args.modelo, args.dibujos, args.min_aruco)
+        print(f"| {r['metodo']} | {r['imagenes']} | {r['fichas']} "
+              f"| {r['perdidas']} ({r['juntas_perdidas']} de {r['juntas']}) "
               f"| {r['falsas']} | {r['error_mm_medio']:.2f} / {r['error_mm_max']:.2f} "
               f"| {r['error_grados_medio']:.2f} / {r['error_grados_max']:.2f} "
               f"| {r['ms_por_imagen']:.1f} |")
