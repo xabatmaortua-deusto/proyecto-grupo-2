@@ -3,6 +3,7 @@
 import math
 import os
 
+import cv2
 import numpy as np
 import pytest
 
@@ -74,6 +75,22 @@ def test_refinar_cajas_como_las_de_yolo(semilla):
     fichas = refinar_cajas(enderezada, cajas, [0.9] * len(cajas))
     comprobar(fichas, verdad)
     assert all(f['confianza'] == 0.9 for f in fichas)
+
+
+def test_refinar_cajas_quita_el_canto_de_la_ficha():
+    # Foto en ángulo: junto a la cara de arriba (18 x 20 mm, clara) se ve el canto (6 mm, más
+    # oscuro). Con el primer Otsu salen 18 x 26 mm, que no es una ficha; con el de lo claro, sí
+    enderezada = np.full((500, 600, 3), 40, np.uint8)  # en el centro, lejos de los ArUco
+    cara = ((300, 250), (18 * PX_POR_MM, 20 * PX_POR_MM), 30)
+    canto = ((300 - 13 * PX_POR_MM * math.sin(math.radians(30)),
+              250 + 13 * PX_POR_MM * math.cos(math.radians(30))),
+             (18 * PX_POR_MM, 6 * PX_POR_MM), 30)
+    cv2.fillPoly(enderezada, [np.intp(cv2.boxPoints(canto))], (150, 150, 150))
+    cv2.fillPoly(enderezada, [np.intp(cv2.boxPoints(cara))], (220, 220, 220))
+    fichas = refinar_cajas(enderezada, [(260, 210, 340, 300)], [0.9])
+    assert len(fichas) == 1
+    assert math.hypot(fichas[0]['x'] - 150, fichas[0]['y'] - 125) < 0.5  # en mm: px / 2
+    assert error_angulo_grados(fichas[0]['angulo'], math.radians(30)) < 3
 
 
 def test_refinar_descarta_cajas_sin_ficha():

@@ -45,13 +45,14 @@ def detectar_aruco(imagen):
             if int(i) in CENTROS_MM}
 
 
-def calcular_homografia(esquinas_px):
+def calcular_homografia(esquinas_px, minimo=3):
     """
     Calcula la homografía píxel -> mm con las esquinas de todos los ArUco que se ven.
 
-    Con 3 ArUco (12 esquinas) sigue siendo fiable; con menos devuelve None.
+    Con 3 ArUco (12 esquinas) sigue siendo fiable; con menos devuelve None. minimo=1 solo
+    para hacer datasets con fotos donde se ve un ArUco: lejos de él el error crece.
     """
-    if len(esquinas_px) < 3:
+    if len(esquinas_px) < minimo:
         return None
     ids = sorted(esquinas_px)
     px = np.concatenate([esquinas_px[i] for i in ids])
