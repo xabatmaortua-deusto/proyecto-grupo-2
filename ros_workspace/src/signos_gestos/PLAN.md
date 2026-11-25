@@ -47,7 +47,8 @@ Las reglas a mano no escalan a todo el abecedario: muchas letras se parecen y ca
 
 | Paso | Script | Qué hace |
 |---|---|---|
-| 1 | [grabar_letras.py](grabar_letras.py) | Graba con la webcam unos 3 s de cada letra y guarda solo los puntos (unos 25 KB) en `dataset_letras/<LETRA>/<persona>_<fecha>.npz`. También admite un vídeo ya grabado (`--video` y `--letra`). |
+| 1 | [grabar_letras.py](grabar_letras.py) | Graba con la webcam unos 3 s de cada letra. Guarda los puntos (unos 25 KB) en `dataset_letras/<LETRA>/<persona>_<fecha>.npz` y **el vídeo limpio** (sin dibujos ni espejo) en `datos/videos/<LETRA>/<persona>_<fecha>.mp4`. También admite un vídeo ya grabado (`--video` y `--letra`). |
+| 1b | [extraer_recortes.py](extraer_recortes.py) | Saca de cada vídeo el **recorte cuadrado de la mano** (224 px, 1 de cada 3 fotogramas) usando los puntos ya guardados, en `datos/recortes/<LETRA>/`. Tiene la estructura de `ImageFolder` y sirve para la red. |
 | 2 | [entrenar_letras.py](entrenar_letras.py) | Entrena y valida **por grabación** o **por persona** (`--val-persona`), para que no haya ventanas gemelas. Saca el acierto por letra y la matriz de confusión en `resultados_letras/` y guarda `modelo_letras.joblib`. |
 | 3 | [reconocer_letras.py](reconocer_letras.py) | Reconoce letras y palabras en directo con la webcam, o en vídeos (guarda el vídeo anotado). |
 
@@ -62,6 +63,24 @@ Las reglas a mano no escalan a todo el abecedario: muchas letras se parecen y ca
 **Estado:** el equipo ha probado el reconocedor con vídeos reales del abecedario completo y confirma que funciona. Los vídeos no se incluyen en Git; se conservan fuera del repositorio. El script permite generar un CSV diagnóstico por fotograma para distinguir fallos de detección de mano, ventana incompleta y rechazo/clasificación.
 
 El modelo `HandLandmarker` se descarga desde una ruta versionada (`float16/1`) para que las instalaciones nuevas no dependan del alias cambiante `latest`. Para revisar una ejecución, se puede añadir `--diagnostico` al reconocedor; el CSV se guarda en `resultados_letras/` e incluye detección, estado, predicción y confianza por fotograma, pero no imágenes ni identidad de personas. Los estados distinguen `sin_mano`, `ventana_incompleta`, `nada`, `confianza_baja` y `reconocida`.
+
+**Una sola grabación sirve para las tres vías.** La misma grabación tiene el mismo nombre en las tres carpetas, y el fotograma *n* del vídeo corresponde a `puntos[n]` del `.npz`:
+
+| Carpeta | Contenido | Quién lo usa | ¿En git? |
+|---|---|---|---|
+| `dataset_letras/<LETRA>/<id>.npz` | Puntos de MediaPipe | MediaPipe + Random Forest | No, por Drive (pendiente de decidir, ver `docs/ESTRUCTURA.md`) |
+| `datos/videos/<LETRA>/<id>.mp4` | Vídeo limpio, como mucho 720 px de alto | Vía clásica (segmentación sobre el fotograma entero) | No, por Drive |
+| `datos/recortes/<LETRA>/<id>_<n>.jpg` | Recorte de la mano | Vía deep learning | No: se regenera con `extraer_recortes.py` |
+
+- `<id>` es `<persona>_<fecha>`, así que la persona sale del nombre de fichero (lo que hay antes del primer `_`) y se puede **separar train/val/test por persona** en todas las vías.
+- Para compartir: subir al Drive del grupo `dataset_letras/` y `datos/videos/`. Los recortes no hace falta compartirlos: cada uno los regenera.
+
+```powershell
+..\.venvVision\Scripts\python.exe extraer_recortes.py                  # todas las letras
+..\.venvVision\Scripts\python.exe extraer_recortes.py --letras A B L O V W --cada 5
+```
+
+Después hay que revisar a ojo `resultados_recortes/muestra.jpg`.
 
 ---
 

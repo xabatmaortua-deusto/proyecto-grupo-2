@@ -33,6 +33,16 @@ URL_MODELO_MANO = ("https://storage.googleapis.com/mediapipe-models/hand_landmar
 CARPETA_DATOS = os.path.join(AQUI, "dataset_letras")              # una subcarpeta por letra
 MODELO_LETRAS = os.path.join(AQUI, "modelo_letras.joblib")        # lo crea entrenar_letras.py
 
+# Lo que pesa (vídeos e imágenes) va a datos/, que NO se sube a git: se comparte por Drive.
+# Cada grabación tiene el mismo nombre en las tres carpetas:
+#   dataset_letras/<LETRA>/<id>.npz      puntos de la mano (git)
+#   datos/videos/<LETRA>/<id>.mp4        vídeo limpio, sin dibujos ni espejo (vía clásica)
+#   datos/recortes/<LETRA>/<id>_<n>.jpg  recorte cuadrado de la mano (vía deep learning)
+# El fotograma n del vídeo corresponde a puntos[n] del .npz.
+CARPETA_VIDEOS = os.path.join(AQUI, "datos", "videos")
+CARPETA_RECORTES = os.path.join(AQUI, "datos", "recortes")
+ALTO_MAX = 720         # los fotogramas se reducen a 720 px de alto como mucho (los del móvil son 4K)
+
 # Alfabeto dactilológico de la LSE. Las letras dobles (CH, LL, RR) tienen su propio signo.
 # Si el profesor pide otro conjunto, basta con cambiar esta lista.
 ALFABETO = ["A", "B", "C", "CH", "D", "E", "F", "G", "H", "I", "J", "K", "L", "LL", "M",
@@ -117,6 +127,37 @@ def dibujar_mano(frame, puntos):
         cv2.line(frame, px[a], px[b], (46, 105, 217), grosor, cv2.LINE_AA)
     for p in px:
         cv2.circle(frame, p, grosor + 2, (54, 42, 30), -1, cv2.LINE_AA)
+
+
+# ------------------------------------------------------------------ vídeo y recortes
+def reducir(frame, alto_max=ALTO_MAX):
+    """Reduce el fotograma a alto_max píxeles de alto como mucho (sin deformarlo)."""
+    H, W = frame.shape[:2]
+    if H <= alto_max:
+        return frame
+    return cv2.resize(frame, (round(W * alto_max / H), alto_max), interpolation=cv2.INTER_AREA)
+
+
+def recorte_mano(frame_bgr, puntos, tam=224, margen=0.25):
+    """Recorte CUADRADO de la mano, de tam x tam píxeles, a partir de los 21 puntos en píxeles.
+
+    El cuadrado rodea los puntos y deja un margen alrededor (0,25 = un 25 % del tamaño de la mano
+    por cada lado), porque los puntos son articulaciones y el borde de la palma queda por fuera.
+    Si la mano está cerca del borde de la imagen, lo que falta se rellena de negro: así la mano
+    no se deforma ni se descentra.
+    """
+    H, W = frame_bgr.shape[:2]
+    (x0, y0), (x1, y1) = puntos[:, :2].min(0), puntos[:, :2].max(0)
+    L = int(round(max(x1 - x0, y1 - y0) * (1 + 2 * margen)))
+    L = max(L, 8)
+    xi = int(round((x0 + x1) / 2 - L / 2))
+    yi = int(round((y0 + y1) / 2 - L / 2))
+    borde = max(0, -xi, -yi, xi + L - W, yi + L - H)
+    if borde:
+        frame_bgr = cv2.copyMakeBorder(frame_bgr, borde, borde, borde, borde, cv2.BORDER_CONSTANT, value=0)
+        xi, yi = xi + borde, yi + borde
+    recorte = frame_bgr[yi:yi + L, xi:xi + L]
+    return cv2.resize(recorte, (tam, tam), interpolation=cv2.INTER_AREA if L > tam else cv2.INTER_LINEAR)
 
 
 # ------------------------------------------------------------------ características
