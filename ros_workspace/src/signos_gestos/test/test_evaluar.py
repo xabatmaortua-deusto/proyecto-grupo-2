@@ -10,8 +10,8 @@ import os
 import cv2
 import numpy as np
 
-from signos_gestos.comun.evaluar import (buscar_videos, evaluar, matriz_confusion, persona_de,
-                                         resumen)
+from signos_gestos.comun.evaluar import (buscar_videos, evaluar, evaluar_palabras,
+                                         formar_palabra, matriz_confusion, persona_de, resumen)
 
 
 def test_matriz_confusion_cuenta_por_fila_real():
@@ -54,10 +54,16 @@ COLORES = {'A': (0, 0, 255), 'B': (0, 255, 0)}       # BGR: rojo = A, verde = B
 
 
 def grabar(ruta, color, n=10):
+    grabar_secuencia(ruta, [(color, n)])
+
+
+def grabar_secuencia(ruta, tramos):
+    """Vídeo de 64 x 64 hecho de tramos (color, n_fotogramas)."""
     os.makedirs(os.path.dirname(ruta), exist_ok=True)
     w = cv2.VideoWriter(ruta, cv2.VideoWriter_fourcc(*'mp4v'), 30, (64, 64))
-    for _ in range(n):
-        w.write(np.full((64, 64, 3), color, dtype=np.uint8))
+    for color, n in tramos:
+        for _ in range(n):
+            w.write(np.full((64, 64, 3), color, dtype=np.uint8))
     w.release()
 
 
@@ -83,3 +89,29 @@ def test_evaluar_recorre_videos_por_letra_y_persona(tmp_path):
     total = filas[-1]
     assert total['fotogramas'] == 40
     assert total['acierto'] == 0.5
+
+
+# ------------------------------------------------------------------ palabras (T2)
+def test_formar_palabra_usa_la_clase_palabra():
+    letras = ['L'] * 12 + ['?'] * 3 + ['O'] * 12 + ['B'] * 12 + ['O'] * 12
+    assert formar_palabra(letras) == 'LOBO'
+    assert formar_palabra(['A'] * 5) == ''               # menos de ESTABLE fotogramas
+    assert formar_palabra(['A'] * 5, estable=5) == 'A'
+
+
+def test_buscar_videos_sin_etiquetas_coge_todas_las_carpetas(tmp_path):
+    grabar(str(tmp_path / 'BOLA' / 'ane_1.mp4'), COLORES['A'])
+    grabar(str(tmp_path / 'OLA' / 'xabi_1.mp4'), COLORES['A'])
+    assert [e for e, _ in buscar_videos(str(tmp_path))] == ['BOLA', 'OLA']
+    assert [e for e, _ in buscar_videos(str(tmp_path), personas=['xabi'])] == ['OLA']
+
+
+def test_evaluar_palabras_compara_real_y_reconocida(tmp_path):
+    negro = (0, 0, 0)
+    grabar_secuencia(str(tmp_path / 'AB' / 'ane_1.mp4'),
+                     [(COLORES['A'], 12), (COLORES['B'], 12)])
+    grabar_secuencia(str(tmp_path / 'AB' / 'xabi_1.mp4'),
+                     [(COLORES['A'], 12), (negro, 10), (COLORES['A'], 12)])  # dice AA
+    filas = evaluar_palabras(lambda: por_color, buscar_videos(str(tmp_path)))
+    assert [(f['persona'], f['reconocida'], f['correcta']) for f in filas] == [
+        ('ane', 'AB', True), ('xabi', 'AA', False)]

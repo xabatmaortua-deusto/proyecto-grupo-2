@@ -30,7 +30,8 @@ signos_gestos/
 │   ├── comun/                   # Lo que usan las DOS vías
 │   │   ├── __init__.py
 │   │   ├── palabra.py           # Clase Palabra: letras estables → palabra
-│   │   └── evaluar.py           # Acierto por letra, matriz de confusión y % de '?' de cualquier reconocer()
+│   │   └── evaluar.py           # De cualquier reconocer(): acierto por letra, matriz de confusión,
+│   │                            #   % de '?' (T1) y palabras completas con Palabra (T2)
 │   ├── clasico/                 # Vía clásica: solo OpenCV, sin modelos entrenados
 │   │   ├── __init__.py
 │   │   ├── segmentar.py         # Máscara de la mano y recorte del antebrazo
@@ -88,7 +89,7 @@ from signos_gestos.comun.palabra import Palabra
 |---|---|---|---|
 | `PLAN.md`, `REPARTO_TAREAS.md` | `docs/` | — | Mover |
 | Clase `Palabra` dentro de `prueba_mediapipe_letras.py` | `signos_gestos/comun/palabra.py` | Keltse (autora) | Hecho. Así la vía clásica no depende de MediaPipe |
-| — | `signos_gestos/comun/evaluar.py` | Keltse (T1) | Hecho (falta el dataset de test) |
+| — | `signos_gestos/comun/evaluar.py` | Keltse (T1, T2) | Hecho (falta el dataset de test) |
 | — | `signos_gestos/clasico/segmentar.py` | Ainhoa (C1-C4) | Por hacer |
 | — | `signos_gestos/clasico/medidas.py` | Ane (C5) | Por hacer |
 | — | `signos_gestos/clasico/reconocer.py` | Ane (C7-C8) | Por hacer |

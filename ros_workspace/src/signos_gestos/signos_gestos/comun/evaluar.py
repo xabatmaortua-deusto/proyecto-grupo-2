@@ -1,6 +1,6 @@
-"""Evaluación común de cualquier reconocer(frame_bgr) -> str. Tarea T1 · Responsable: Keltse.
+"""Evaluación común de cualquier reconocer(frame_bgr) -> str. Tareas T1 y T2 · Responsable: Keltse.
 
-Pasa los vídeos de letras por un reconocedor y calcula, fotograma a fotograma:
+LETRAS (T1). Pasa los vídeos de letras por un reconocedor y calcula, fotograma a fotograma:
     - el acierto por letra (y el global),
     - el porcentaje de '?' (el reconocedor no se atreve a decir nada),
     - el acierto sin contar los '?' (cuando dice algo, ¿acierta?),
@@ -10,16 +10,24 @@ Los vídeos son los limpios que guarda grabar_letras.py: datos/videos/<LETRA>/<p
 Todos los fotogramas de un vídeo tienen como etiqueta su letra, también los que no tienen mano
 (cuentan como '?' si el reconocedor no dice nada).
 
+PALABRAS (T2). Pasa cada vídeo de una palabra por el reconocedor y por la clase Palabra (la
+misma que usará el nodo ROS) y compara la palabra reconocida con la real. Los vídeos van en
+datos/palabras/<PALABRA>/<persona>_<fecha>.mp4: la carpeta es la palabra real. Se graban con
+cualquier cámara (sin espejo) y se renombran así a mano.
+
 Uso, desde la carpeta signos_gestos/ (la del package.xml):
     python -m signos_gestos.comun.evaluar --via rf --personas ane          # Random Forest
     python -m signos_gestos.comun.evaluar --via reglas --personas ane      # MediaPipe + reglas
     python -m signos_gestos.comun.evaluar --via clasico --personas ane     # vía clásica
     python -m signos_gestos.comun.evaluar --via rf --letras A B L O V W --carpeta otra/carpeta
+    python -m signos_gestos.comun.evaluar --via rf --palabras --personas ane   # palabras (T2)
 
 --personas elige el conjunto de test (por defecto, todos los vídeos: solo para probar).
 El conjunto de test NO se usa para ajustar umbrales ni para elegir el modelo (REPARTO_TAREAS.md).
 
-Resultados en resultados_evaluacion/<via>/: resumen.csv, matriz.csv y matriz.png.
+Resultados en resultados_evaluacion/<via>/:
+    letras:   resumen.csv, matriz.csv y matriz.png
+    palabras: palabras.csv (vídeo, persona, palabra real, reconocida y si es correcta)
 """
 import argparse
 import csv
@@ -29,10 +37,13 @@ import sys
 import cv2
 import numpy as np
 
+from signos_gestos.comun.palabra import ESTABLE, HUECO, Palabra
+
 LETRAS = ['A', 'B', 'L', 'O', 'V', 'W']   # el mínimo de CLAUDE.md
 NADA = '?'
 RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CARPETA_VIDEOS = os.path.join(RAIZ, 'datos', 'videos')
+CARPETA_PALABRAS = os.path.join(RAIZ, 'datos', 'palabras')
 SALIDA = os.path.join(RAIZ, 'resultados_evaluacion')
 
 
@@ -45,12 +56,19 @@ def persona_de(ruta):
     return os.path.basename(ruta).split('_')[0].lower()
 
 
-def buscar_videos(carpeta, letras, personas=None):
-    """Lista de (letra, ruta) de carpeta/<LETRA>/*.mp4, solo de esas personas si se dan."""
+def buscar_videos(carpeta, etiquetas=None, personas=None):
+    """Lista de (etiqueta, ruta) de carpeta/<ETIQUETA>/*.mp4.
+
+    La etiqueta es la letra (T1) o la palabra (T2). Sin etiquetas, todas las subcarpetas.
+    Con personas, solo los vídeos de esas personas.
+    """
+    if etiquetas is None:
+        etiquetas = sorted(d for d in os.listdir(carpeta)
+                           if os.path.isdir(os.path.join(carpeta, d)))
     personas = {p.lower() for p in personas} if personas else None
     videos = []
-    for letra in letras:
-        sub = os.path.join(carpeta, letra)
+    for etiqueta in etiquetas:
+        sub = os.path.join(carpeta, etiqueta)
         if not os.path.isdir(sub):
             continue
         for nombre in sorted(os.listdir(sub)):
@@ -58,7 +76,7 @@ def buscar_videos(carpeta, letras, personas=None):
             if not nombre.lower().endswith('.mp4'):
                 continue
             if personas is None or persona_de(ruta) in personas:
-                videos.append((letra, ruta))
+                videos.append((etiqueta, ruta))
     return videos
 
 
@@ -130,6 +148,29 @@ def evaluar(crear_reconocer, videos, letras):
     return m, columnas, resumen(m, letras, columnas)
 
 
+def formar_palabra(predichas, estable=ESTABLE, hueco=HUECO):
+    """Pasa las letras de cada fotograma por Palabra y devuelve el texto final."""
+    palabra = Palabra(estable, hueco)
+    for letra in predichas:
+        palabra.actualizar(letra)
+    return palabra.texto
+
+
+def evaluar_palabras(crear_reconocer, videos):
+    """Una fila por vídeo: vídeo, persona, palabra real, reconocida y si es correcta.
+
+    Igual que en evaluar(), cada vídeo empieza con un reconocedor nuevo.
+    """
+    filas = []
+    for real, ruta in videos:
+        reconocida = formar_palabra(predecir_video(crear_reconocer(), ruta))
+        filas.append({'video': os.path.basename(ruta), 'persona': persona_de(ruta),
+                      'real': real, 'reconocida': reconocida, 'correcta': reconocida == real})
+        print(f'  {real:8s} {os.path.basename(ruta)}: {reconocida!r}'
+              f' {"bien" if reconocida == real else "MAL"}', flush=True)
+    return filas
+
+
 # ------------------------------------------------------------------ guardar
 def guardar(carpeta, m, columnas, filas, titulo):
     os.makedirs(carpeta, exist_ok=True)
@@ -164,6 +205,14 @@ def guardar(carpeta, m, columnas, filas, titulo):
     fig.tight_layout()
     fig.savefig(os.path.join(carpeta, 'matriz.png'), dpi=120)
     plt.close(fig)
+
+
+def guardar_palabras(carpeta, filas):
+    os.makedirs(carpeta, exist_ok=True)
+    with open(os.path.join(carpeta, 'palabras.csv'), 'w', newline='', encoding='utf-8') as f:
+        w = csv.DictWriter(f, fieldnames=list(filas[0]), delimiter=';')
+        w.writeheader()
+        w.writerows(filas)
 
 
 def imprimir(filas):
@@ -232,19 +281,36 @@ def main():
                     help='personas del conjunto de test (por defecto, todas)')
     ap.add_argument('--letras', nargs='+', default=LETRAS,
                     help=f'letras a evaluar ({" ".join(LETRAS)})')
-    ap.add_argument('--carpeta', default=CARPETA_VIDEOS, help='carpeta con <LETRA>/<id>.mp4')
+    ap.add_argument('--palabras', action='store_true',
+                    help='evaluar palabras completas (T2) en vez de letras sueltas')
+    ap.add_argument('--carpeta',
+                    help='carpeta con <LETRA>/<id>.mp4 o <PALABRA>/<id>.mp4 '
+                         '(por defecto datos/videos o datos/palabras)')
     args = ap.parse_args()
 
-    videos = buscar_videos(args.carpeta, args.letras, args.personas)
+    if args.carpeta is None:
+        args.carpeta = CARPETA_PALABRAS if args.palabras else CARPETA_VIDEOS
+    if not os.path.isdir(args.carpeta):
+        raise SystemExit(f'No existe la carpeta {args.carpeta}')
+    videos = buscar_videos(args.carpeta, None if args.palabras else args.letras, args.personas)
     if not videos:
-        raise SystemExit(f'No hay vídeos de {" ".join(args.letras)} en {args.carpeta}')
+        raise SystemExit(f'No hay vídeos en {args.carpeta}')
     if not args.personas:
         print('AVISO: sin --personas se evalúa con TODOS los vídeos, '
               'también los de entrenamiento.')
     print(f'{len(videos)} vídeos · vía {args.via}')
+    carpeta = os.path.join(SALIDA, args.via)
+
+    if args.palabras:
+        filas = evaluar_palabras(VIAS[args.via], videos)
+        bien = sum(f['correcta'] for f in filas)
+        print(f'\nPalabras correctas: {bien}/{len(filas)} ({bien / len(filas):.0%})')
+        guardar_palabras(carpeta, filas)
+        print(f'Resultados en {carpeta}')
+        return
+
     m, columnas, filas = evaluar(VIAS[args.via], videos, args.letras)
     imprimir(filas)
-    carpeta = os.path.join(SALIDA, args.via)
     personas = ', '.join(args.personas) if args.personas else 'todas'
     guardar(carpeta, m, columnas, filas, f'{args.via} · personas: {personas}')
     print(f'\nResultados en {carpeta}')
