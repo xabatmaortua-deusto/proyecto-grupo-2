@@ -18,6 +18,10 @@ de abajo a la derecha, y lo decide la etapa de letras).
 
 También está aquí lo necesario para meter fotos reales en un dataset: enderezar_foto (con un solo
 ArUco si se pide) y falta_alguna_ficha, para no guardar fotos con fichas sin etiquetar.
+
+Calidad mínima: se_ve_la_letra dice si la letra de una ficha se ve (ni lavada por la luz ni
+borrosa). Solo se recortan fichas con la letra a la vista, y dataset_yolo descarta las imágenes
+en las que alguna letra no se ve: una ficha cuya letra no se lee no le sirve al robot.
 """
 
 import cv2
@@ -34,6 +38,42 @@ RESTO_MIN = 0.3  # una zona clara de 0,3 fichas sin ficha detectada encima cuent
 BORDE_BORRADO_MM = 5.0  # al borrar una ficha del fondo, también su canto y su sombra
 SEPARACION_MM = 3.0  # hueco mínimo entre fichas pegadas (así el clásico las separa)
 SOMBRA_MM = 4.0  # hasta dónde llega la sombra de una ficha pegada
+# Umbrales de se_ve_la_letra, elegidos mirando ~34 000 fichas del dataset del 23-11
+RADIO_LETRA_MM = 0.4 * ANCHO_FICHA_MM  # disco donde se mide: dentro de la ficha con cualquier giro
+CONTRASTE_LETRA_MIN = 0.20  # por debajo, la letra casi no se distingue de la madera
+NITIDEZ_LETRA_MIN = 0.25  # por debajo, la letra está borrosa o movida
+
+
+def calidad_letra(imagen, centro, px_por_mm=PX_POR_MM):
+    """
+    Devuelve (contraste, nitidez) de la letra de la ficha con centro `centro` (x, y en px).
+
+    Se mide en un disco en el centro de la ficha. contraste = (madera - letra) / madera, con la
+    madera en el percentil 75 del brillo y la letra en el 3: baja con la luz quemada y con el velo.
+    nitidez = el gradiente más fuerte del borde de la letra (percentil 98) dividido entre el salto
+    madera - letra: 0,5 en un borde perfecto y menos cuanto más borroso. Devuelve None si el disco
+    se sale de la imagen.
+    """
+    r = round(RADIO_LETRA_MM * px_por_mm)
+    x, y = round(centro[0]), round(centro[1])
+    alto, ancho = imagen.shape[:2]
+    if x - r < 0 or y - r < 0 or x + r >= ancho or y + r >= alto:
+        return None
+    gris = cv2.cvtColor(imagen[y - r:y + r + 1, x - r:x + r + 1], cv2.COLOR_BGR2GRAY)
+    gris = gris.astype(np.float32)
+    yy, xx = np.mgrid[-r:r + 1, -r:r + 1]
+    madera, letra = np.percentile(gris[xx ** 2 + yy ** 2 <= r ** 2], [75, 3])
+    gradiente = np.hypot(cv2.Sobel(gris, cv2.CV_32F, 1, 0), cv2.Sobel(gris, cv2.CV_32F, 0, 1)) / 8
+    pendiente = np.percentile(gradiente[xx ** 2 + yy ** 2 <= (r - 1) ** 2], 98)
+    return (madera - letra) / max(madera, 1.0), pendiente / max(madera - letra, 1.0)
+
+
+def se_ve_la_letra(imagen, centro, px_por_mm=PX_POR_MM):
+    """Dice si la letra de la ficha con centro `centro` (px) se ve: ni lavada ni borrosa."""
+    calidad = calidad_letra(imagen, centro, px_por_mm)
+    if calidad is None:
+        return False
+    return calidad[0] >= CONTRASTE_LETRA_MIN and calidad[1] >= NITIDEZ_LETRA_MIN
 
 
 def enderezar_foto(imagen, minimo=3, px_por_mm=PX_POR_MM):
@@ -102,7 +142,8 @@ def recortar_fichas(enderezada, px_por_mm=PX_POR_MM):
     Recorta las fichas sueltas que encuentra detectar_clasico: [{'imagen': BGR, 'alfa': 0..1}].
 
     alfa es la silueta clara de la ficha (madera y canto, con la letra dentro), con el borde
-    suavizado para que al pegarla no se note el corte.
+    suavizado para que al pegarla no se note el corte. Las fichas cuya letra no se ve no se
+    recortan.
     """
     contornos, _ = cv2.findContours(zonas_claras(enderezada, px_por_mm), cv2.RETR_EXTERNAL,
                                     cv2.CHAIN_APPROX_SIMPLE)
@@ -113,7 +154,7 @@ def recortar_fichas(enderezada, px_por_mm=PX_POR_MM):
         centro = (f['x'] * px_por_mm, f['y'] * px_por_mm)
         contorno = next((c for c in contornos if cv2.pointPolygonTest(c, centro, False) >= 0),
                         None)
-        if contorno is None:
+        if contorno is None or not se_ve_la_letra(enderezada, centro, px_por_mm):
             continue
         x, y, w, h = cv2.boundingRect(contorno)
         x0, y0, x1, y1 = max(0, x - b), max(0, y - b), min(ancho, x + w + b), min(alto, y + h + b)

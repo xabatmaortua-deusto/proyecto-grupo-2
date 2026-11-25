@@ -6,7 +6,7 @@ import numpy as np
 from signos_fichas.bandeja import (calcular_homografia, CENTROS_MM, detectar_aruco, enderezar,
                                    esquinas_mm, LADO_ARUCO_MM)
 from signos_fichas.compuestas import (borrar_fichas, enderezar_foto, falta_alguna_ficha,
-                                      pegar_fichas, recortar_fichas, variar_luz)
+                                      pegar_fichas, recortar_fichas, se_ve_la_letra, variar_luz)
 from signos_fichas.deteccion import detectar_clasico, MARGEN_ARUCO_MM, PX_POR_MM
 from signos_fichas.sinteticas import generar
 
@@ -75,6 +75,17 @@ def test_las_fichas_pegadas_las_encuentra_el_clasico_en_sus_cajas():
     for f in fichas:
         u, v = f['x'] * PX_POR_MM, f['y'] * PX_POR_MM
         assert sum(x1 < u < x2 and y1 < v < y2 for x1, y1, x2, y2 in cajas) == 1
+
+
+def test_se_ve_la_letra_salvo_borrosa_o_lavada():
+    enderezada, verdad = enderezada_sintetica(4)
+    centros = [(f['x'] * PX_POR_MM, f['y'] * PX_POR_MM) for f in verdad['fichas']]
+    assert all(se_ve_la_letra(enderezada, c) for c in centros)
+    borrosa = cv2.GaussianBlur(enderezada, (0, 0), 4)  # 2 mm de desenfoque
+    lavada = (enderezada * 0.2 + 190).astype(np.uint8)  # velo de luz, como las fotos del 23
+    for mala in (borrosa, lavada):
+        assert not any(se_ve_la_letra(mala, c) for c in centros)
+    assert not se_ve_la_letra(enderezada, (2, 2))  # el disco se sale de la imagen
 
 
 def test_variar_luz():
