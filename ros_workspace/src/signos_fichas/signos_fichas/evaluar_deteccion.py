@@ -11,6 +11,8 @@ La verdad es el .json que guarda sinteticas.py junto a cada imagen:
 vale el mismo formato; con --min-aruco 1 valen fotos donde solo se ve un ArUco. Si una ficha
 real lleva 'junta': true (toca a otra), se cuenta aparte cuántas de las perdidas son juntas: el
 clásico las descarta a propósito, porque el montaje garantiza que las fichas están separadas.
+'theta': null es una ficha marcada a mano, con el centro aproximado y sin ángulo: cuenta para
+las perdidas y las falsas, pero no para el error de ángulo.
 
 Uso:
     python3 -m signos_fichas.evaluar_deteccion carpeta [--metodo clasico dl]
@@ -106,7 +108,7 @@ def evaluar(imagenes, metodo, px_por_mm=deteccion.PX_POR_MM, modelo=None, dibujo
         falsas += len(fichas) - len(parejas)
         errores_mm += [d for _, _, d in parejas]
         errores_grados += [error_angulo_grados(fichas[i]['angulo'], verdad[j]['theta'])
-                           for i, j, _ in parejas]
+                           for i, j, _ in parejas if verdad[j]['theta'] is not None]
         if dibujos:
             nombre = f'{os.path.splitext(os.path.basename(ruta))[0]}_{metodo}.png'
             cv2.imwrite(os.path.join(dibujos, nombre),

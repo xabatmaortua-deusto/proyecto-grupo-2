@@ -94,7 +94,10 @@ def refinar_cajas(enderezada, cajas, confianzas, px_por_mm=PX_POR_MM):
     Busca la ficha dentro de cada caja (x1, y1, x2, y2 en píxeles de la enderezada).
 
     Dentro de la caja, ampliada un poco, Otsu separa la madera del fondo y minAreaRect del
-    contorno más grande da el centro y el ángulo. Las cajas sin una ficha válida se descartan.
+    contorno más grande da el centro y el ángulo. Si eso no tiene forma de ficha, suele ser
+    porque lleva pegado el canto de la ficha (fotos en ángulo) o un trozo de la de al lado, que
+    son más oscuros que la cara de arriba: se repite Otsu solo con lo claro. Las cajas sin una
+    ficha válida se descartan.
     """
     alto, ancho = enderezada.shape[:2]
     util = fuera_de_los_aruco(enderezada.shape, px_por_mm)
@@ -104,17 +107,31 @@ def refinar_cajas(enderezada, cajas, confianzas, px_por_mm=PX_POR_MM):
         u1, v1 = max(0, int(x1 - margen)), max(0, int(y1 - margen))
         u2, v2 = min(ancho, int(x2 + margen) + 1), min(alto, int(y2 + margen) + 1)
         brillo = cv2.cvtColor(enderezada[v1:v2, u1:u2], cv2.COLOR_BGR2HSV)[:, :, 2]
-        _, binaria = cv2.threshold(brillo, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        binaria[~util[v1:v2, u1:u2]] = 0  # una ficha junto a un ArUco no se junta con su papel
-        contornos, _ = cv2.findContours(binaria, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if not contornos:
-            continue
-        rect = _rectangulo_de_ficha(max(contornos, key=cv2.contourArea), px_por_mm)
+        # Fuera de los ArUco: una ficha junto a un ArUco no se junta con su papel
+        rect = _ficha_en_caja(brillo, util[v1:v2, u1:u2], px_por_mm)
         if rect is not None:
             (cu, cv), tamano, angulo_rect = rect  # el centro, en píxeles del trozo de la caja
             fichas.append(_ficha(enderezada, ((cu + u1, cv + v1), tamano, angulo_rect),
                                  px_por_mm, float(confianza)))
     return fichas
+
+
+def _ficha_en_caja(brillo, util, px_por_mm):
+    """Devuelve el minAreaRect de la ficha en el brillo de una caja (Otsu y Otsu de lo claro)."""
+    umbral, _ = cv2.threshold(brillo, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    for _ in range(2):
+        binaria = ((brillo > umbral) & util).astype(np.uint8) * 255
+        contornos, _ = cv2.findContours(binaria, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if contornos:
+            rect = _rectangulo_de_ficha(max(contornos, key=cv2.contourArea), px_por_mm)
+            if rect is not None:
+                return rect
+        claro = brillo[brillo > umbral]
+        if claro.size == 0:
+            return None
+        umbral, _ = cv2.threshold(claro.reshape(-1, 1), 0, 255,
+                                  cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return None
 
 
 def dibujar(enderezada, fichas, px_por_mm=PX_POR_MM):
