@@ -37,7 +37,8 @@ nunca con las de test.
 
 Pruebas
 -------
-test/test_reconocer_clasico.py (pendiente).
+test/test_reconocer_clasico.py: las reglas con medidas inventadas y la cadena completa con
+imágenes en color dibujadas con código.
 """
 from signos_gestos.clasico.segmentar import mascara_mano
 from signos_gestos.clasico.medidas import medidas
