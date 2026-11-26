@@ -155,10 +155,10 @@ La clase `Palabra` (`signos_gestos/comun/palabra.py`, sacada de `prueba_mediapip
 
 ## 3. Próximos pasos
 
-1. **Grabar un dataset etiquetado.**
-   - **Un vídeo por letra** (A, B, L, O, V, W), hecho por **las cuatro personas** del grupo y con un par de iluminaciones distintas.
+1. **Grabar un dataset etiquetado.** El plan detallado (qué grabar, condiciones, paso a paso y registro de sesiones)
+   está en [docs/DATASET.md](docs/DATASET.md).
+   - Letras (A, B, L, O, V, W y `nada`) y palabras, hechas por **las cuatro personas** y con dos iluminaciones.
    - Cámara fija, fondo liso y manga larga oscura.
-   - De cada vídeo se extraen fotogramas a carpetas `datos/A/`, `datos/B/`, etc.
    - Es el **conjunto común** que pide el apartado 5 del hito, y lo usan los dos métodos.
 2. **Separar ya el conjunto de test**, por ejemplo una persona entera o una iluminación, y no usarlo para ajustar nada hasta la evaluación final.
 3. **Grabar también palabras completas** (LOBO, BOLA, OLA...) para probar la construcción de palabras.

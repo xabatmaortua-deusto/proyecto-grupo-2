@@ -21,6 +21,7 @@ signos_gestos/
 │
 ├── docs/                        # Notas, decisiones y documentación del equipo
 │   ├── ESTRUCTURA.md            # Este documento
+│   ├── DATASET.md               # Plan de captura del dataset: qué grabar, cómo y dónde se guarda
 │   ├── PLAN.md                  # Plan técnico (movido desde la raíz de la carpeta)
 │   ├── REPARTO_TAREAS.md        # Reparto de tareas (movido desde la raíz de la carpeta)
 │   └── figuras/                 # Imágenes para la memoria: máscaras, gráficas, matrices de confusión
@@ -45,6 +46,7 @@ signos_gestos/
 │
 ├── herramientas/                # Scripts que se ejecutan a mano, fuera de ROS
 │   ├── grabar_letras.py         # Grabar ejemplos de cada letra
+│   ├── importar_palabra.py      # Meter vídeos de palabras (móvil, cámara de Windows) en datos/palabras/
 │   ├── entrenar_letras.py       # Entrenar el clasificador de la vía DL
 │   ├── analisis_medidas.ipynb   # Gráficas de medidas por letra para elegir umbrales (vía clásica)
 │   └── pruebas/                 # Pruebas iniciales que queremos conservar (prueba_mediapipe_letras.py, Práctica 5)
