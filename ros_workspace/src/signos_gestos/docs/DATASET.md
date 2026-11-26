@@ -116,8 +116,13 @@ subcarpetas**, así que basta con copiarlas:
 dataset_letras/<LETRA>/<persona>_<fecha>.npz    puntos de MediaPipe            → Drive (¿o git? decisión pendiente)
 datos/videos/<LETRA>/<persona>_<fecha>.mp4      vídeo limpio de cada letra     → Drive
 datos/palabras/<PALABRA>/<persona>_<fecha>.mp4  vídeo de cada palabra          → Drive
+datos/fotos/<LETRA>/<persona>_<fecha>.jpg       fotos sueltas de cada letra    → Drive (Trabajo_Vision/Fotos/)
 datos/recortes/<LETRA>/...jpg                   recortes de la mano (red)      → no se sube: se regenera
 ```
+
+**Fotos del 26/11** (`datos/fotos/`): 7 personas × 6 letras = 42 fotos con la webcam, fondo blanco y mano
+derecha, una foto por letra y persona. Las personas son `persona1` … `persona7` (sin nombres). Sirven sobre todo para
+la vía clásica (ajustar la segmentación y las medidas) y como prueba extra de la red, porque son 7 personas distintas.
 
 | Vía | Usa |
 |---|---|
