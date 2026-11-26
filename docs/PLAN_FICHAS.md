@@ -74,6 +74,50 @@ Cada uno escribe en la memoria el objetivo, el método, el código y los resulta
    para entrenar ni para ajustar umbrales.
 6. **Integración con el robot** (B3, Fase 2), memoria y ensayo de la defensa.
 
+## Sesión de fotos (B1 y B4): lista de comprobación
+
+Las fotos del 23-11 no bastan: no tienen O, V ni W, solo se ve un ArUco y la exposición automática quema la madera
+(se pierde el número pequeño de Scrabble, que sirve para la orientación). Las fichas reales son de Scrabble y **no
+tienen raya**: el giro sale de la forma de la letra. Con una sesión bien planificada salen a la vez los datos de
+letras (clásico y DL), el test de detección y la evaluación final.
+
+**Antes de grabar**
+- [ ] Montaje definitivo, el de la demo: bandeja con los 4 ArUco visibles y la ELP cenital en el trípode a la altura final.
+- [ ] `ANCHO_MM` y `FONDO_MM` medidos (si no, las fotos se enderezan con un solo ArUco, como las del 23-11).
+- [ ] Cámara en manual: exposición, balance de blancos y enfoque fijos. Apuntar la resolución y los ajustes.
+- [ ] Fichas: O, V, W, A, B y L, al menos 2 de cada una, y que salgan todas (la impresión cambia de una a otra).
+- [ ] Sin manos en la imagen: mover las fichas, sacar la mano y esperar 2-3 s quietos (como un stop-motion).
+
+**Tipo 1: una letra por vídeo, todas derechas (entrenar)**
+- [ ] Un vídeo por letra, solo con las fichas de esa letra.
+- [ ] Todas con la parte de arriba de la letra hacia el lado de los ArUco 0 y 1, torcidas ±30° como mucho. Así el
+      giro es siempre 0 y la letra la da el nombre del vídeo: no hay que etiquetar a mano. Los otros giros se
+      generan con `np.rot90`.
+- [ ] Por toda la bandeja: centro, bordes, esquinas y cerca de los ArUco. 30-60 s y 10-15 posiciones por vídeo.
+
+**Tipo 2: escenas mezcladas, como en la demo (validar y test)**
+- [ ] Las 6 letras juntas, en cualquier orientación, separadas lo mínimo que garantiza el montaje (sin tocarse).
+- [ ] Algunas fichas giradas exactamente 90° y 180°.
+- [ ] Unas fotos de la bandeja vacía (detecciones falsas).
+- [ ] Opcional: alguna ficha de otra letra (C, D, E…) para ver qué hace el sistema con una letra que no conoce.
+
+**Luz**: cada tipo, con tres luces.
+- [ ] La del laboratorio tal cual (la de la demo).
+- [ ] Con sombra: alguien o el brazo del robot tapando parte de la bandeja.
+- [ ] Lateral o más baja: lámpara de lado o parte de las luces apagadas.
+
+**Test**
+- [ ] Un bloque de vídeos del tipo 2 reservado para el test, mejor de otro día u otra hora. No se usa para
+      entrenar ni para ajustar umbrales.
+- [ ] De 20-30 de sus fotos, marcar a mano la letra y el giro de cada ficha.
+
+**Organización**
+- [ ] Una carpeta por sesión: `ros_workspace/datasets/fichas/crudo/<fecha>/`, y lo mismo en Drive.
+- [ ] Nombres que digan qué hay: `t1_O_luzlab.mp4`, `t1_V_sombra.mp4`, `t2_mezcla_lateral.mp4`, `test_mezcla_luzlab.mp4`…
+- [ ] Un `notas.txt` con los ajustes de la cámara, la luz de cada vídeo y qué lado son los ArUco 0 y 1.
+
+**Mínimo si no hay tiempo**: tipo 1 de las 6 letras con la luz del laboratorio, tipo 2 con dos luces y un vídeo de test.
+
 ## Para la defensa: revisión cruzada
 
 Todos tenemos que poder explicar todo. Cada bloque lo revisa y lo prueba otra persona antes de darlo por cerrado:
@@ -101,7 +145,8 @@ entrenaron YOLO y la CNN, y lanzar el nodo y ver `/signos/fichas` con `ros2 topi
 ## Pendiente
 
 - Medir la distancia real entre los centros de los ArUco (`ANCHO_MM`, `FONDO_MM` en `bandeja.py`; ahora 300 × 250 mm provisionales).
-- Primeras fotos reales de la bandeja con la ELP.
+- ~~Primeras fotos reales de la bandeja con la ELP~~: hechas el 23-11. Falta una segunda sesión con O, V y W
+  (ver la lista de comprobación de la sesión de fotos).
 - ~~Probar el código en el contenedor~~: hecho. El OpenCV de apt es 4.6 y no tiene `ArucoDetector`; con
   `pip install --break-system-packages -r requirements.txt` (OpenCV 4.11, numpy 1.26) pasan `colcon build` y
   `colcon test` de `signos_fichas`.
