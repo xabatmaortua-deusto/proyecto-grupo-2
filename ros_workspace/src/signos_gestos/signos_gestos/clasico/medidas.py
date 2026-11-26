@@ -81,11 +81,22 @@ def contorno_mano(mascara):
     return contornos[i_mano], agujeros
 
 
+def mayor_fraccion_agujero(agujeros, area_mano):
+    """Área del agujero más grande dividida entre el área de la mano (0 si no hay agujeros).
+
+    Es el valor en bruto con el que se decide tiene_agujero(). Lo usa el cuaderno de análisis
+    para elegir FRACCION_MIN_AGUJERO.
+    """
+    if area_mano <= 0 or not agujeros:
+        return 0.0
+    return max(cv2.contourArea(a) for a in agujeros) / area_mano
+
+
 def tiene_agujero(agujeros, area_mano):
     """Indica si alguno de los agujeros es lo bastante grande para ser el círculo de la O."""
-    if area_mano <= 0:
+    if area_mano <= 0 or not agujeros:
         return False
-    return any(cv2.contourArea(a) >= FRACCION_MIN_AGUJERO * area_mano for a in agujeros)
+    return mayor_fraccion_agujero(agujeros, area_mano) >= FRACCION_MIN_AGUJERO
 
 
 def solidez(contorno, area):
@@ -134,19 +145,22 @@ def angulo(a, b, c):
     return math.degrees(math.acos(max(-1.0, min(1.0, coseno))))
 
 
-def huecos_entre_dedos(contorno):
-    """Devuelve los huecos entre dedos como una lista de (punta_1, base, punta_2).
+def defectos_convexidad(contorno):
+    """Devuelve TODOS los defectos de convexidad del contorno, sin filtrar.
 
     Técnica NO vista en clase: cv2.convexityDefects. Justificación: es la continuación directa de
     cv2.convexHull (tema 4). Devuelve los tramos donde el contorno se separa de la envolvente
-    convexa, con su punto más profundo y su profundidad; es decir, los huecos entre los dedos.
-    Ninguna medida vista en clase cuenta dedos: la solidez no sirve (ver test_medidas.py).
+    convexa, con su punto más profundo y su profundidad; es decir, los posibles huecos entre
+    los dedos. Ninguna medida vista en clase cuenta dedos: la solidez no sirve (test_medidas.py).
 
-    De todos los defectos, solo cuentan los profundos y estrechos (constantes del principio).
-    El tamaño de la mano se mide con el radio de cv2.minEnclosingCircle (tema 4).
+    Cada defecto es un diccionario con:
+        punta_1, base, punta_2   puntos (x, y) del contorno: los dos extremos y el más profundo
+        profundidad              profundidad / radio del círculo mínimo que encierra la mano
+                                 (cv2.minEnclosingCircle, tema 4), para no depender de la distancia
+        angulo                   ángulo en la base, en grados
 
-    Depende de que la máscara no incluya el antebrazo: el hueco entre el pulgar de la L y la
-    muñeca se cuenta como un dedo más (comprobado con manos dibujadas).
+    Son los valores en bruto con los que huecos_entre_dedos() decide qué es un hueco entre dedos.
+    Los usa el cuaderno de análisis para elegir FRACCION_MIN_PROFUNDIDAD y ANGULO_MAX_HUECO.
     """
     if len(contorno) < 4:
         return []
@@ -162,19 +176,38 @@ def huecos_entre_dedos(contorno):
         return []
 
     _, radio = cv2.minEnclosingCircle(contorno)
+    if radio <= 0:
+        return []
     # reshape: OpenCV 4 devuelve las formas (N, 1, 4) y (N, 1, 2); OpenCV 5, (N, 4) y (N, 2).
     puntos = contorno.reshape(-1, 2)
-    huecos = []
+    resultado = []
     for inicio, fin, mas_profundo, profundidad in defectos.reshape(-1, 4):
         punta_1 = tuple(int(v) for v in puntos[inicio])
         punta_2 = tuple(int(v) for v in puntos[fin])
         base = tuple(int(v) for v in puntos[mas_profundo])
-        # OpenCV da la profundidad multiplicada por 256 (en coma fija).
-        es_profundo = profundidad / 256.0 >= FRACCION_MIN_PROFUNDIDAD * radio
-        es_estrecho = angulo(punta_1, base, punta_2) < ANGULO_MAX_HUECO
-        if es_profundo and es_estrecho:
-            huecos.append((punta_1, base, punta_2))
-    return huecos
+        resultado.append({
+            'punta_1': punta_1,
+            'base': base,
+            'punta_2': punta_2,
+            # OpenCV da la profundidad multiplicada por 256 (en coma fija).
+            'profundidad': profundidad / 256.0 / radio,
+            'angulo': angulo(punta_1, base, punta_2),
+        })
+    return resultado
+
+
+def huecos_entre_dedos(contorno):
+    """Devuelve los huecos entre dedos como una lista de (punta_1, base, punta_2).
+
+    De todos los defectos de convexidad, solo cuentan los profundos y estrechos (constantes del
+    principio del fichero).
+
+    Depende de que la máscara no incluya el antebrazo: el hueco entre el pulgar de la L y la
+    muñeca se cuenta como un dedo más (comprobado con manos dibujadas).
+    """
+    return [(d['punta_1'], d['base'], d['punta_2'])
+            for d in defectos_convexidad(contorno)
+            if d['profundidad'] >= FRACCION_MIN_PROFUNDIDAD and d['angulo'] < ANGULO_MAX_HUECO]
 
 
 def n_dedos(huecos):
