@@ -4,11 +4,12 @@ Reconocimiento de letras del alfabeto dactilológico (LSE) **solo con OpenCV, si
 Este documento explica qué pasos sigue la vía clásica, cuáles están hechos y por qué se ha elegido cada técnica,
 para que quien retome el trabajo sepa por dónde seguir.
 
-Estado a 24/11/2026. Actualizad las marcas de estado cada vez que se termine un paso.
+Estado a 26/11/2026. Actualizad las marcas de estado cada vez que se termine un paso.
 
 | Marca | Significado |
 |---|---|
 | ✅ | Hecho y con tests |
+| 🟡 | Hecho y con tests, pero solo probado con imágenes sintéticas: falta validarlo con el dataset real |
 | 🔲 | Pendiente |
 | ⚠️ | Pendiente y con una decisión que tomar antes de empezar |
 
@@ -51,15 +52,19 @@ fotograma ──► 1. segmentar ──► máscara ──► 2-6. medidas ─�
 | Paso | Qué hace | Fichero | Estado |
 |---|---|---|---|
 | 0 | Dataset de imágenes etiquetadas, separado en entrenamiento y test | Drive del grupo | 🔲 |
-| 1 | Segmentación: de la foto a la máscara de la mano, sin antebrazo | `signos_gestos/clasico/segmentar.py` | ⚠️ |
+| 1 | Segmentación: de la foto a la máscara de la mano, sin antebrazo | `signos_gestos/clasico/segmentar.py` | 🟡 |
 | 2 | Contorno de la mano y agujero interior | `signos_gestos/clasico/medidas.py` | ✅ |
 | 3 | Solidez | `signos_gestos/clasico/medidas.py` | ✅ |
 | 4 | Alargamiento | `signos_gestos/clasico/medidas.py` | ✅ |
 | 5 | Número de dedos | `signos_gestos/clasico/medidas.py` | ✅ |
 | 6 | Ángulo entre dedos | `signos_gestos/clasico/medidas.py` | ✅ |
-| 7 | Análisis de las medidas por letra para elegir umbrales | `herramientas/analisis_medidas.ipynb` | 🔲 |
-| 8 | Reglas de decisión | `signos_gestos/clasico/reconocer.py` | 🔲 |
-| 9 | Evaluación y comparación con la vía DL | (función común, por definir) | 🔲 |
+| 7 | Análisis de las medidas por letra para elegir umbrales | `herramientas/analisis_medidas.ipynb` | 🟡 |
+| 8 | Reglas de decisión | `signos_gestos/clasico/reconocer.py` | 🟡 |
+| 9 | Evaluación y comparación con la vía DL | `signos_gestos/comun/evaluar.py` (común a todas las vías) | 🔲 |
+
+**Toda la cadena funciona de principio a fin con imágenes dibujadas** (`test_reconocer_clasico.py`: reconoce las 6
+letras y devuelve `'?'` sin mano o con un solo dedo). Lo que falta es el **dataset real** (paso 0) para ajustar los
+umbrales de los pasos 1, 7 y 8 y evaluar (paso 9).
 
 La **máscara** es el punto de unión entre la segmentación y las medidas. Formato acordado: imagen de un canal, mano en
 blanco (cualquier valor distinto de 0) y fondo en negro, **sin antebrazo**. `medidas.py` ya espera este formato, así
@@ -82,11 +87,26 @@ que los dos lados se pueden desarrollar por separado.
 - Conviene que sea **el mismo conjunto que use la vía DL**: así la comparación entre las dos vías es justa.
 - Las imágenes no van a git: van al Drive del grupo, y en el repositorio se documenta dónde están.
 
-### Paso 1 · Segmentación ⚠️
+### Paso 1 · Segmentación 🟡
 
 Objetivo: una máscara limpia de la mano, sin fondo, sin ruido y sin antebrazo.
 
-**1a. Umbral de color de piel.** Se propone el espacio **YCrCb** con los rangos de la Práctica 4:
+**Implementado** en `segmentar.py` con la función `mascara_mano(frame_bgr) -> mascara`:
+
+1. Suavizado gaussiano con un filtro de 5 × 5 (`TAM_KERNEL`).
+2. Conversión a YCrCb.
+3. Umbral de piel en los canales Cr y Cb con los rangos de la Práctica 4 (`CR_MIN`, `CR_MAX`, `CB_MIN`, `CB_MAX`).
+4. Máscara de un canal con valores 0 y 255, el formato que espera `medidas.py`.
+
+No usa morfología ni recorta el antebrazo: confía en las condiciones de captura (opción 1 del apartado 1c).
+Tiene 7 tests en `test_segmentar.py` (máscara de un canal y binaria, fondo vacío, detecta el color de piel, la manga
+oscura no se segmenta, conserva el agujero de la O y es compatible con `medidas.py`). Para ver la máscara de una foto
+real: `herramientas/visualizar_segmentacion.py`.
+
+**Pendiente:** ajustar los rangos de color con fotos reales de nuestra cámara y nuestra luz, y comprobar con ellas que
+la manga oscura basta para eliminar el antebrazo.
+
+**1a. Umbral de color de piel.** Espacio **YCrCb** con los rangos de la Práctica 4:
 `133 ≤ Cr ≤ 173` y `77 ≤ Cb ≤ 127`, que habrá que ajustar a nuestra cámara y nuestra luz con el dataset.
 - *Por qué YCrCb:* separa el brillo (Y) del color (Cr, Cb), así que el umbral aguanta mejor los cambios de luz que
   trabajar en BGR. Se vio en la Práctica 4 para filtrar falsas caras por color de piel.
@@ -94,21 +114,19 @@ Objetivo: una máscara limpia de la mano, sin fondo, sin ruido y sin antebrazo.
   en el canal S puede bastar. Merece la pena comparar las dos con el dataset.
 
 **1b. Reducir el ruido.** Suavizado gaussiano (`cv2.GaussianBlur`, tema 4) antes del umbral, para que no salgan
-píxeles sueltos. Después, quedarse con la mancha más grande: esto **ya lo hace `medidas.py`** (paso 2), así que las
+píxeles sueltos. Después, quedarse con la mancha más grande: esto **lo hace `medidas.py`** (paso 2), así que las
 manchas pequeñas de ruido no afectan a las medidas.
 - La limpieza con morfología (apertura y cierre, `cv2.morphologyEx`) **no se vio en clase**. Solo se debería añadir si
   el dataset muestra que hace falta (por ejemplo, agujeros falsos dentro de la mano), y justificándolo.
 
-**1c. Quitar el antebrazo.** ⚠️ **Decisión pendiente.** Si el antebrazo entra en la máscara, el alargamiento y el
-número de dedos salen mal. Opciones:
+**1c. Quitar el antebrazo.** Si el antebrazo entra en la máscara, el alargamiento y el número de dedos salen mal.
+**Decisión actual: opción 1 (manga larga oscura).** Si con las fotos reales no basta, se pasa a la 2 o la 3. Opciones:
 1. **Por las condiciones de captura** (recomendada primero): con manga larga oscura el antebrazo no tiene color de
    piel y el umbral no lo coge. No añade ninguna técnica.
 2. **Recorte geométrico con técnicas de clase:** por ejemplo, con el círculo mínimo (`cv2.minEnclosingCircle`) o el
    rectángulo mínimo (`cv2.minAreaRect`, tema 4) de la mano, cortar lo que quede por debajo de la muñeca.
 3. **Transformada de distancia** (`cv2.distanceTransform`, **no vista en clase**): su máximo está en el centro de la
    palma y da el radio de la palma; se corta a ~1,5 radios. Es la solución más robusta, pero habría que justificarla.
-
-Se recomienda probar la opción 1 con el dataset y pasar a la 2 o la 3 solo si no basta.
 
 - *Alternativa vista en clase descartada de momento:* **GrabCut** (tema 5) separa primer plano y fondo muy bien, pero
   necesita un rectángulo inicial y es lento para vídeo en directo. Podría servir para generar máscaras de referencia
@@ -179,7 +197,7 @@ Se recomienda probar la opción 1 con el dataset y pasar a la 2 o la 3 solo si n
   filtrar; la solución es recortar el antebrazo en el paso 1c.
 - **Caso a vigilar en las reglas (paso 8):** una mano con **un solo dedo** levantado da 0 dedos (no deja huecos
   estrechos) y es alargada, así que se parece a la B. No es una de nuestras letras, pero si alguien la hace, las
-  reglas deberían devolver `'?'`. Habrá que ver en el paso 7 si la solidez o el alargamiento las separan.
+  reglas deberían devolver `'?'`. Resuelto en el paso 8 con la solidez (`UMBRAL_SOLIDEZ`), aunque con poco margen.
 - **Compatibilidad:** OpenCV 5 (el de `requirements.txt`) devuelve los defectos con forma `(N, 4)` y OpenCV 4 (el de
   los ejemplos de clase) con `(N, 1, 4)`. El código usa `reshape` para funcionar con los dos.
 - **Técnica no vista en clase: `cv2.convexityDefects`.** Justificación:
@@ -189,6 +207,7 @@ Se recomienda probar la opción 1 con el dataset y pasar a la 2 o la 3 solo si n
   - Es la forma habitual de contar dedos sobre una silueta.
 - Los umbrales (fracción de profundidad y ángulo) quedan como constantes al principio de `medidas.py`, con su
   justificación, y se ajustan en el paso 7.
+
 ### Paso 6 · Ángulo entre dedos ✅
 
 - Cuando hay **2 dedos**, el único hueco entre ellos (paso 5) da tres puntos: los dos extremos y la base.
@@ -198,7 +217,7 @@ Se recomienda probar la opción 1 con el dataset y pasar a la 2 o la 3 solo si n
 - **Para qué sirve:** distinguir la **L** (índice y pulgar, ~105–110° medido así) de la **V** (índice y corazón,
   ~35–55°). La separación entre las dos es muy grande, así que el umbral de la regla (paso 8) tiene margen.
 
-### Paso 7 · Análisis de las medidas 🔲
+### Paso 7 · Análisis de las medidas 🟡
 
 - En `herramientas/analisis_medidas.ipynb`: segmentar y medir todas las imágenes **de entrenamiento**, y dibujar con
   matplotlib (usado en todas las prácticas) **una gráfica por medida, con un color por letra**.
@@ -206,7 +225,30 @@ Se recomienda probar la opción 1 con el dataset y pasar a la 2 o la 3 solo si n
 - También sirve para revisar los valores provisionales ya escritos (`FRACCION_MIN_AGUJERO` y los del paso 5).
 - Las gráficas que vayan a la memoria se guardan en `docs/figuras/`.
 
-### Paso 8 · Reglas de decisión 🔲
+**Implementado:** el cuaderno carga las imágenes (la letra sale del nombre del archivo), las segmenta con
+`mascara_mano()`, las mide con `medidas()` y muestra una tabla de medidas, una gráfica por medida (agujero, dedos,
+alargamiento, solidez y ángulo) y los mínimos, máximos y medias de cada medida por letra. Con esas gráficas se eligen
+los umbrales de `reconocer.py` (apartados 7, 8 y 9 del cuaderno).
+
+**Ajuste de los umbrales de `medidas.py`** (apartado 10 del cuaderno). Las gráficas anteriores muestran medidas ya
+decididas («hay agujero», «2 dedos»), que no dicen por cuánto falla un umbral. Este apartado muestra los **valores en
+bruto**, con el umbral actual como línea discontinua:
+- **10.1** El tamaño del agujero más grande de cada mano respecto a su área (`mayor_fraccion_agujero()`), para
+  elegir `FRACCION_MIN_AGUJERO`. Solo la O debe quedar por encima de la línea.
+- **10.2** La profundidad y el ángulo de **todos** los defectos de convexidad (`defectos_convexidad()`), también los
+  que se descartan, para elegir `FRACCION_MIN_PROFUNDIDAD` y `ANGULO_MAX_HUECO`. Solo los huecos reales entre dedos
+  de la L, la V y la W deben quedar en la zona de arriba a la izquierda.
+
+Probado con imágenes dibujadas: las O dan un agujero del 9–18 % y el resto de letras 0 %; los huecos entre dedos
+quedan en la zona correcta. Hay un grupo de defectos de la L, la V y la W **justo por debajo** de la línea de
+profundidad (0,21–0,23, con 130–140°): son los lados entre el dedo de fuera y la palma. Con manos reales hay que
+vigilar que no suban por encima de la línea, porque se contarían como dedos.
+
+**Pendiente:** se ha ejecutado con **imágenes sintéticas** guardadas en una carpeta temporal
+(`/tmp/pruebas_gestos_sinteticas/`) que **no está en el repositorio**, así que nadie más puede repetir ese análisis.
+Hay que cambiar `CARPETA_DATOS` a las imágenes de entrenamiento del dataset real (paso 0) y volver a ejecutarlo.
+
+### Paso 8 · Reglas de decisión 🟡
 
 Árbol de decisión escrito a mano, en el orden en que se separan las letras con más seguridad:
 
@@ -220,11 +262,36 @@ Se recomienda probar la opción 1 con el dataset y pasar a la 2 o la 3 solo si n
 cualquier otro caso            → '?'
 ```
 
-- La solidez se puede usar como comprobación extra: por ejemplo, devolver `'?'` si dice «mano abierta» y no se han
-  encontrado dedos.
 - Los umbrales salen del paso 7 y se ajustan **solo con datos de entrenamiento**. Quedan como constantes al principio de
   `reconocer.py`, cada una con un comentario que diga de dónde sale.
-- Tests: medidas inventadas que deben dar cada letra y casos que deben dar `'?'`.
+
+**Implementado** en `reconocer.py`: `clasificar_medidas(medidas) -> letra` aplica el árbol, y `reconocer(frame_bgr)`
+encadena segmentación, medidas y reglas. Umbrales iniciales, elegidos con las imágenes sintéticas del paso 7:
+
+| Constante | Valor | De dónde sale (imágenes sintéticas) | Para qué |
+|---|---|---|---|
+| `UMBRAL_ALARGAMIENTO` | 1,8 | A = 1,06; B = 2,63 | Más alargada que el umbral → B; si no → A |
+| `UMBRAL_ANGULO` | 90° | L = 115°; V = 67° | Más abierta que el umbral → L; si no → V |
+| `UMBRAL_SOLIDEZ` | 0,9 | A y B cerca de 1; un solo dedo = 0,82 | Con 0 dedos, por debajo del umbral → `'?'` |
+
+La solidez se usa como comprobación extra: con 0 dedos, si la forma no es compacta, devuelve `'?'` en lugar de A o B.
+Así no confunde con la B una mano con un solo dedo levantado (el caso que se avisaba en el paso 5).
+
+Tests en `test_reconocer_clasico.py` (20):
+- **Reglas, con medidas inventadas:** cada letra, que el agujero manda sobre el resto y los casos que deben dar `'?'`
+  (sin mano, 0 dedos con poca solidez, 2 dedos sin ángulo, 1, 4 o 5 dedos). Los valores se calculan a partir de las
+  constantes `UMBRAL_*`, para que los tests sigan valiendo cuando se ajusten los umbrales.
+- **Cadena completa, con imágenes en color dibujadas** (fondo claro y mano del color de piel de `test_segmentar.py`):
+  reconoce A, B, O, L, V y W, y devuelve `'?'` sin imagen, con el fondo vacío o con un solo dedo.
+
+**Pendiente: ajustar los umbrales con el dataset real.** Hay que vigilar sobre todo la solidez:
+- Con una B dibujada como tres dedos juntos (con pequeños huecos entre ellos), la solidez es **0,81** y el reconocedor
+  devuelve `'?'` en lugar de B. Un solo dedo levantado da 0,76–0,82: hay muy poco margen entre los dos casos.
+- Una B real, con los dedos juntos pero no pegados del todo, podría quedar por debajo de 0,9. Si pasa, habrá que bajar
+  el umbral o buscar otra forma de separar la B del dedo suelto (por ejemplo, la anchura relativa de la forma).
+- Los ángulos de la L y la V dependen de cómo se dibuje la mano: con las manos de `test_medidas.py` salen L ≈ 107–110°
+  y V ≈ 35–52°; con las imágenes del paso 7, L = 115° y V = 67°. En los dos casos el umbral de 90° las separa, pero el
+  valor bueno saldrá de las fotos reales.
 
 ### Paso 9 · Evaluación y comparación 🔲
 
@@ -235,6 +302,19 @@ cualquier otro caso            → '?'
 - Robustez: resultados por persona y por iluminación.
 - Palabras completas: pasar las letras por la clase `Palabra` con los vídeos de palabras.
 - La misma evaluación se hace con la vía DL para compararlas, por eso conviene una función de evaluación común.
+
+**Herramienta disponible:** `signos_gestos/comun/evaluar.py` (común a todas las vías, en la rama `grupo-4-gestos`)
+ya calcula el acierto por letra, el porcentaje de `'?'`, el acierto sin contar los `'?'`, la matriz de confusión y la
+evaluación de palabras completas, y tiene una opción para la vía clásica. Desde la carpeta `signos_gestos/`:
+
+```bash
+python -m signos_gestos.comun.evaluar --via clasico --personas <persona_de_test>
+python -m signos_gestos.comun.evaluar --via clasico --palabras --personas <persona_de_test>
+```
+
+Lee los vídeos de `datos/videos/<LETRA>/` y `datos/palabras/<PALABRA>/`. `--personas` elige el conjunto de test.
+
+**Pendiente:** el dataset real (paso 0) y unir `grupo-4-gestos` a la rama de la vía clásica para tener `evaluar.py`.
 
 ---
 
@@ -252,14 +332,16 @@ cualquier otro caso            → '?'
 | `cv2.minEnclosingCircle` | 5 (y quizá 1c) | Sí (tema 4) | Tamaño de la mano para umbrales relativos |
 | Ángulo entre tres puntos | 6 | Sí (sesión 5 y Práctica 5) | Distinguir L de V |
 | matplotlib | 7 | Sí (todas las prácticas) | Gráficas para elegir umbrales |
+| `cv2.imshow`, `cv2.imread` | Herramienta de visualización | Sí (tema 3) | Ver la máscara de una foto |
+| `cv2.bitwise_and` | Herramienta de visualización | No aparece en las transparencias; solo se usa para mostrar la mano recortada, no en el reconocimiento | Ver la mano sin el fondo |
 | `classification_report`, matriz de confusión | 9 | Sí (Práctica 3) | Evaluación |
 | **`cv2.convexityDefects`** | 5 | **No** | Contar dedos. Justificado en el paso 5 |
 | *`cv2.morphologyEx`* | *1, solo si hace falta* | *No* | *Limpiar la máscara. Pendiente de decidir* |
 | *`cv2.distanceTransform`* | *1c, solo si hace falta* | *No* | *Quitar el antebrazo. Pendiente de decidir* |
 | *GrabCut* | *1, como referencia* | *Sí (tema 5)* | *Máscaras de referencia. Descartado para tiempo real* |
 
-Ahora mismo hay **una sola técnica no vista en clase** en uso (`convexityDefects`), frente a más de diez vistas en
-clase. Si se añaden morfología o transformada de distancia en el paso 1, hay que justificarlas aquí y en la memoria y
+Ahora mismo hay **una sola técnica no vista en clase** en el reconocimiento (`convexityDefects`), frente a más de diez
+vistas en clase. Si se añaden morfología o transformada de distancia en el paso 1, hay que justificarlas aquí y en la memoria y
 comprobar que siguen siendo minoría.
 
 ---
@@ -267,10 +349,11 @@ comprobar que siguen siendo minoría.
 ## 5. Cómo retomar el trabajo
 
 - **Código:** `signos_gestos/clasico/`. Cada fichero empieza con una descripción de lo que hace o hará.
-- **Tests:** `test/test_medidas.py` y `test/test_reconocer_clasico.py`. Desde la carpeta `signos_gestos/`:
+- **Tests:** `test/test_segmentar.py`, `test/test_medidas.py` y `test/test_reconocer_clasico.py` (45 en total).
+  Desde la carpeta `signos_gestos/`:
 
   ```bash
-  python -m pytest test/test_medidas.py test/test_reconocer_clasico.py -v
+  python -m pytest test/test_segmentar.py test/test_medidas.py test/test_reconocer_clasico.py -v
   ```
 
   Con `python -m` la carpeta actual entra en el path y se puede importar el paquete. Ejecutadlos antes de cada commit.
@@ -280,11 +363,16 @@ comprobar que siguen siendo minoría.
 - **Cada medida nueva** va con su función en `medidas.py`, su entrada en el diccionario que devuelve `medidas()` y al
   menos un test con formas dibujadas con código.
 - **Umbrales y valores provisionales:** siempre como constantes al principio del fichero, con un comentario que diga de
-  dónde salen. Hoy, en `medidas.py`: `FRACCION_MIN_AGUJERO = 0.02`, `FRACCION_MIN_PROFUNDIDAD = 0.25` y
-  `ANGULO_MAX_HUECO = 120`. Todos se revisan en el paso 7 con fotos reales.
-- **Estilo:** el paquete ROS revisa el estilo con flake8 y pep257 (líneas de 99 caracteres como máximo y docstrings en
-  todas las funciones). Código, comentarios y mensajes en español.
-- **Siguiente paso sugerido:** `medidas.py` está completo y probado con manos dibujadas. Lo siguiente es el dataset
-  (paso 0) y la segmentación (paso 1): con las primeras fotos se puede comprobar si las medidas se comportan igual con
-  manos reales y pasar al análisis (paso 7).
+  dónde salen. Todos se revisan en el paso 7 con fotos reales. Hoy:
+  - `segmentar.py`: `TAM_KERNEL = (5, 5)`, `CR_MIN = 133`, `CR_MAX = 173`, `CB_MIN = 77`, `CB_MAX = 127`.
+  - `medidas.py`: `FRACCION_MIN_AGUJERO = 0.02`, `FRACCION_MIN_PROFUNDIDAD = 0.25`, `ANGULO_MAX_HUECO = 120`.
+  - `reconocer.py`: `UMBRAL_ALARGAMIENTO = 1.8`, `UMBRAL_ANGULO = 90`, `UMBRAL_SOLIDEZ = 0.9`.
+- **Estilo:** el paquete ROS revisa el estilo con flake8 y pep257 (líneas de 99 caracteres como máximo, salto de línea
+  al final de cada fichero y docstrings en todas las funciones). Código, comentarios y mensajes en español.
+- **Siguiente paso sugerido:** toda la cadena está hecha y probada con imágenes dibujadas. Lo que falta depende del
+  **dataset real** (paso 0), en este orden:
+  1. Comprobar la segmentación con fotos reales (`visualizar_segmentacion.py`) y ajustar los rangos de color.
+  2. Volver a ejecutar el análisis (paso 7) con las imágenes de entrenamiento y ajustar los umbrales de `medidas.py`
+     y `reconocer.py`, vigilando sobre todo la solidez de la B.
+  3. Evaluar con el conjunto de test usando `evaluar.py --via clasico` (paso 9) y comparar con la vía DL.
 - Organización general de la carpeta: `docs/ESTRUCTURA.md`.

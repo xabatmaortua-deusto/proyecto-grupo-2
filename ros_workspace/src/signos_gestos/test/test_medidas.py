@@ -10,7 +10,9 @@ import math
 import cv2
 import numpy as np
 
-from signos_gestos.clasico.medidas import angulo, medidas
+from signos_gestos.clasico.medidas import (ANGULO_MAX_HUECO, FRACCION_MIN_PROFUNDIDAD, angulo,
+                                           contorno_mano, defectos_convexidad,
+                                           huecos_entre_dedos, mayor_fraccion_agujero, medidas)
 
 
 def lienzo():
@@ -159,6 +161,35 @@ def test_w_tres_dedos():
     r = medidas(mano([-25, 0, 25]))
     assert r['n_dedos'] == 3
     assert r['angulo_dedos'] is None
+
+
+def test_fraccion_de_agujero_en_bruto():
+    # Valores en bruto que usa el cuaderno de análisis para elegir FRACCION_MIN_AGUJERO.
+    lleno = lienzo()
+    cv2.circle(lleno, (100, 100), 60, 255, -1)
+    contorno, agujeros = contorno_mano(lleno)
+    assert mayor_fraccion_agujero(agujeros, cv2.contourArea(contorno)) == 0.0
+
+    anillo = lleno.copy()
+    cv2.circle(anillo, (100, 100), 30, 0, -1)          # hueco de radio 30 en una mano de radio 60
+    contorno, agujeros = contorno_mano(anillo)
+    fraccion = mayor_fraccion_agujero(agujeros, cv2.contourArea(contorno))
+    assert 0.2 < fraccion < 0.4                          # (30 / 60)² = 0,25 del círculo exterior
+
+
+def test_defectos_en_bruto_incluyen_los_descartados():
+    # El cuaderno necesita ver también los defectos que el filtro descarta.
+    contorno, _ = contorno_mano(mano([0, -90]))
+    todos = defectos_convexidad(contorno)
+    huecos = huecos_entre_dedos(contorno)
+    assert len(todos) > len(huecos)
+    for d in todos:
+        assert d['profundidad'] >= 0
+        assert 0 <= d['angulo'] <= 180
+    aceptados = [d for d in todos
+                 if d['profundidad'] >= FRACCION_MIN_PROFUNDIDAD
+                 and d['angulo'] < ANGULO_MAX_HUECO]
+    assert len(aceptados) == len(huecos)
 
 
 def test_se_queda_con_la_mancha_mas_grande():
