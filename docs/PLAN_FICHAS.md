@@ -83,7 +83,7 @@ letras (clásico y DL), el test de detección y la evaluación final.
 
 **Antes de grabar**
 - [ ] Montaje definitivo, el de la demo: bandeja con los 4 ArUco visibles y la ELP cenital en el trípode a la altura final.
-- [ ] `ANCHO_MM` y `FONDO_MM` medidos (si no, las fotos se enderezan con un solo ArUco, como las del 23-11).
+- [ ] `ANCHO_MM` y `FONDO_MM` medidos (si no, las fotos se enderezan con un solo ArUco, como las del 23-11). ancho 44,5 cm fondo 25cm
 - [ ] Cámara en manual: exposición, balance de blancos y enfoque fijos. Apuntar la resolución y los ajustes.
 - [ ] Fichas: O, V, W, A, B y L, al menos 2 de cada una, y que salgan todas (la impresión cambia de una a otra).
 - [ ] Sin manos en la imagen: mover las fichas, sacar la mano y esperar 2-3 s quietos (como un stop-motion).
