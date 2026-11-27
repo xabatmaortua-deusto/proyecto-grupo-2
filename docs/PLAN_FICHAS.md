@@ -74,6 +74,43 @@ Cada uno escribe en la memoria el objetivo, el método, el código y los resulta
    para entrenar ni para ajustar umbrales.
 6. **Integración con el robot** (B3, Fase 2), memoria y ensayo de la defensa.
 
+## ArUco y calibración de la cámara (B1): lista de comprobación
+
+Todo lo que se mide en mm sale de los ArUco. Si el lado o la distancia entre centros están mal, fallan el filtro
+de tamaño de las fichas, las posiciones para el robot y todo lo que va detrás. El 26-11 no se pudo enderezar
+ningún vídeo: con ArUco de 80 mm, los centros salen a unos 547 × 283 mm, no a los 445 × 250 apuntados.
+
+El material de clase está en [`herramientas/aruco/`](../herramientas/aruco/README.md): la hoja A4 con 4 ArUco de 80 mm,
+`capturar.py`, `calibrar.py` y `medir_arucos.py`. **Se calibra con la hoja entera y después se recortan los ArUco**:
+`calibrar.py` necesita saber dónde está cada marcador en la hoja (100 × 150 mm) para corregir el borde.
+
+**Imprimir**
+- [ ] Imprimir `arucos_calibracion_A4.pdf` a tamaño real (100 %, sin "Ajustar a página").
+- [ ] Comprobar con una regla la regla de 100 mm de la hoja y el lado de un marcador (80 mm). Si no dan, volver a
+      imprimir. La hoja tiene que estar plana: mejor pegada a un cartón.
+
+**Calibrar (con la cámara ya en su sitio y en manual)**
+- [ ] Fijar resolución (4K), enfoque, exposición y balance de blancos, los mismos que se usarán luego. Si cambian el
+      enfoque, la exposición o la relación de aspecto, hay que volver a calibrar.
+- [ ] `python capturar.py --cam 0 --width 3840 --height 2160`: unas 30 capturas de la hoja con al menos 3 marcadores,
+      con inclinaciones y distancias distintas y pasando por las esquinas de la imagen (donde la lente deforma más).
+- [ ] `python calibrar.py capturas/` → `calibracion_camara.json`. El "error de ajuste" de la tabla tiene que bajar
+      mucho. Si sigue alto, el modelo sencillo no basta para el ojo de pez de la ELP (el README propone ChArUco).
+- [ ] Guardar las capturas en Drive y `calibracion_camara.json` en `signos_fichas` (es pequeño y es de nuestra cámara).
+
+**Pegar en la bandeja y medir**
+- [ ] Recortar los 4 ArUco y pegarlos en las esquinas de un rectángulo: 0 arriba a la izquierda, 1 arriba a la derecha,
+      2 abajo a la izquierda y 3 abajo a la derecha, vistos desde la cámara.
+- [ ] **Todos con el mismo giro que en la hoja** (ninguno girado 90°): `bandeja.esquinas_mm()` lo da por hecho.
+- [ ] Medir con regla la distancia entre centros de 0 a 1 (`ANCHO_MM`) y de 0 a 2 (`FONDO_MM`).
+- [ ] Comprobarla con `python medir_arucos.py --image foto_bandeja.png --no-gui` sobre una foto de la bandeja: la
+      calcula con el lado de 80 mm. Si coincide con la regla, se pasa a `bandeja.py`.
+
+**Código (Mikel)**
+- [ ] `bandeja.py`: aplicar la calibración (`LensModel.undistort`, ver el apartado 7 del README) a las esquinas de los
+      ArUco y a los puntos de las fichas antes de la homografía, y poner `ANCHO_MM` y `FONDO_MM` medidos.
+- [ ] Probar con los vídeos del 26-11 que se enderezan y que la detección encuentra las fichas.
+
 ## Sesión de fotos (B1 y B4): lista de comprobación
 
 Las fotos del 23-11 no bastan: no tienen O, V ni W, solo se ve un ArUco y la exposición automática quema la madera
@@ -83,7 +120,7 @@ letras (clásico y DL), el test de detección y la evaluación final.
 
 **Antes de grabar**
 - [ ] Montaje definitivo, el de la demo: bandeja con los 4 ArUco visibles y la ELP cenital en el trípode a la altura final.
-- [ ] `ANCHO_MM` y `FONDO_MM` medidos (si no, las fotos se enderezan con un solo ArUco, como las del 23-11). ancho 44,5 cm fondo 25cm
+- [ ] ArUco pegados, medidos y cámara calibrada (lista anterior). Las medidas del 26-11 (445 × 250 mm) no cuadran.
 - [ ] Cámara en manual: exposición, balance de blancos y enfoque fijos. Apuntar la resolución y los ajustes.
 - [ ] Fichas: O, V, W, A, B y L, al menos 2 de cada una, y que salgan todas (la impresión cambia de una a otra).
 - [ ] Sin manos en la imagen: mover las fichas, sacar la mano y esperar 2-3 s quietos (como un stop-motion).
@@ -118,6 +155,13 @@ letras (clásico y DL), el test de detección y la evaluación final.
 
 **Mínimo si no hay tiempo**: tipo 1 de las 6 letras con la luz del laboratorio, tipo 2 con dos luces y un vídeo de test.
 
+**Hecho el 26-11** (`crudo/2026-11-26/notas.txt`): tipo 1 de las 6 letras, tipo 2 y bandeja vacía, solo con la luz
+del laboratorio. **Para la segunda sesión** (después de calibrar):
+- [ ] Vídeo en 4K (el del 26-11 es 1080p, unos 2,7 px/mm, y el número pequeño casi no se ve).
+- [ ] Balance de blancos en manual (el 26-11 quedó en automático) y la exposición apuntada.
+- [ ] Tipo 2 con sombra y con luz lateral.
+- [ ] El bloque de test reservado.
+
 ## Para la defensa: revisión cruzada
 
 Todos tenemos que poder explicar todo. Cada bloque lo revisa y lo prueba otra persona antes de darlo por cerrado:
@@ -144,9 +188,10 @@ entrenaron YOLO y la CNN, y lanzar el nodo y ver `/signos/fichas` con `ros2 topi
 
 ## Pendiente
 
-- Medir la distancia real entre los centros de los ArUco (`ANCHO_MM`, `FONDO_MM` en `bandeja.py`; ahora 300 × 250 mm provisionales).
-- ~~Primeras fotos reales de la bandeja con la ELP~~: hechas el 23-11. Falta una segunda sesión con O, V y W
-  (ver la lista de comprobación de la sesión de fotos).
+- Calibrar la cámara y medir los ArUco (`ANCHO_MM`, `FONDO_MM` en `bandeja.py`; ahora 300 × 250 mm provisionales).
+  Ver la lista de ArUco y calibración.
+- ~~Primeras fotos reales de la bandeja con la ELP~~: hechas el 23-11 y el 26-11 (ya con O, V y W). Falta la
+  segunda sesión (ver la lista de la sesión de fotos).
 - ~~Probar el código en el contenedor~~: hecho. El OpenCV de apt es 4.6 y no tiene `ArucoDetector`; con
   `pip install --break-system-packages -r requirements.txt` (OpenCV 4.11, numpy 1.26) pasan `colcon build` y
   `colcon test` de `signos_fichas`.

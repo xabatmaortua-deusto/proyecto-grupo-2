@@ -9,3 +9,4 @@ __pycache__/
 *.onnx
 runs/
 ros_workspace/datasets/
+herramientas/aruco/capturas/
